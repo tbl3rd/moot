@@ -6,7 +6,13 @@
            (set-variable 'cider-lein-parameters "repl")
            (cider-jack-in)))
   "First time: Put the cursor before this string and: C-xC-e"
-  "After that use C-cM-j (AKA cider-jack-in) to restart boot REPL.")
+  "After that use C-cM-j (AKA cider-jack-in) to restart boot REPL."
+
+  "If not hacking build.boot, shell out and run: boot debug"
+  "... to start up the development environment."
+  "Then from Emacs visiting a Clojure buffer: M-x cider-connect"
+  "Accept the cider-connect defaults with: RET RET RET."
+  "Start a browser repl at the cider-repl prompt with: (start-repl)")
 
 (set-env!
  :source-paths   #{"src"}
@@ -27,7 +33,7 @@
              keywords)))
   (get-env))
 
-(import-environment-variables :google-maps-api-key)
+(import-environment-variables :google-api-key)
 
 (require
  '[adzerk.boot-cljs      :refer [cljs]]

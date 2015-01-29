@@ -1,4 +1,6 @@
-(ns moot)
+(ns moot
+  (:require
+   [goog.events :as goog.events]))
 
 (defn log
   "Log msg on the console."
