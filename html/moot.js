@@ -1,28 +1,13 @@
-var baseUrl = 'https:';
-
-function makeNewMap(callback) {
-    return function() {
-        var div = document.createElement('div');
-        div.setAttribute('id', 'map-canvas');
-        document.body.appendChild(div);
-        var mapOptions = {
-            center: { lat: -34.397, lng: 150.644 },
-            zoom: 8
-        };
-        var map = new google.maps.Map(div, mapOptions);
-        callback();
-    }
+function newMap() {
+    var mapOptions = {
+        center: { lat: -34.397, lng: 150.644 },
+        zoom: 8
+    };
+    var div = document.createElement('div');
+    div.id = 'map';
+    document.body.appendChild(div);
+    console.log("newMap()");
+    var map = new google.maps.Map(div, mapOptions);
 }
 
-var newMap = makeNewMap(function () { alert("FNORD"); });
-
-function loadMap() {
-    var key = 'AIzaSyA10Vv0gV5yLp1WcTpqoA9hhILt_Rhc6OQ';
-    var api = baseUrl + '//maps.googleapis.com/maps/api/js?' + '&v=3';
-    var script = document.createElement('script');
-    script.type = 'text/javascript';
-    script.src = api + '&key=' + key + '&signed_in=true' + '&callback=newMap';
-    document.head.appendChild(script);
-}
-
-window.onload = loadMap;
+google.maps.event.addDomListener(window, 'load', newMap);
