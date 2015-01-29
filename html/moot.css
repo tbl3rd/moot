@@ -7,17 +7,19 @@ body { -webkit-animation: androidBugfix infinite 1s; }
     box-sizing: border-box;
 }
 
+html {
+    height: 100%;
+    width: 100%;
+}
+
 body {
-    background-image: url('../img/bosch.png');
-    background-repeat: no-repeat;
-    text-align: center;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
-h1 {
-    color: magenta;
-    text-decoration: line-through;
-}
-
-p  {
-    color: red;
+#map-canvas {
+    height: 100%;
+    width: 100%;
 }
