@@ -26,6 +26,8 @@ body {
 }
 
 .legend {
+    display: flex;
+    flex-direction: column;
     position: fixed;
     background: #fff;
     opacity: 0;
@@ -49,4 +51,8 @@ img.legend-icon {
 
 .guy {
     margin: 10px;
+}
+
+.buttons {
+    margin: 5px;
 }

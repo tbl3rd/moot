@@ -23,6 +23,19 @@
           {:id 108 :title "Mr Yellow"    :color :yellow
            :position {:lat 42.366465 :lng -71.095194}}]}))
 
+(defn log
+  "Log msg on the console."
+  [msg]
+  (.log js/console (pr-str msg)))
+
+(def invisible-markers
+  "Marker is invisible when its id is in this set."
+  (atom #{}))
+(defn marker-visible? [id] (not (contains? @invisible-markers id)))
+(defn toggle-visible!
+  [id]
+  (swap! invisible-markers #((if (contains? % id) disj conj) % id)))
+
 (def markers
   "The markers on the map."
   (atom {}))
@@ -32,11 +45,6 @@
   (let [colors [:blue :green :red :yellow :orange :pink :purple]
         dotify (fn [c] (keyword (str (name c) "-dot")))]
     (reduce conj colors (map dotify colors))))
-
-(defn log
-  "Log msg on the console."
-  [msg]
-  (.log js/console (pr-str msg)))
 
 (defn append-child
   "Append HTML element child to parent."
@@ -54,6 +62,7 @@
     (let [value (cond (true? v) "true"
                       (false? v) "false"
                       (number? v) (str v)
+                      (fn? v) v
                       :else (name v))]
       (.setAttribute element (name k) value))))
 
@@ -74,20 +83,23 @@
                 :else (append-child element (.createTextNode js/document kid))))
         element))))
 
-(def body  (element-for-tag :body))
-(def div   (element-for-tag :div))
-(def form  (element-for-tag :form))
-(def h1    (element-for-tag :h1))
-(def h2    (element-for-tag :h2))
-(def head  (element-for-tag :head))
-(def html  (element-for-tag :html))
-(def img   (element-for-tag :img))
-(def input (element-for-tag :input))
-(def label (element-for-tag :label))
-(def p     (element-for-tag :p))
-(def span  (element-for-tag :span))
-(def style (element-for-tag :style))
-(def title (element-for-tag :title))
+(def body   (element-for-tag :body))
+(def button (element-for-tag :button))
+(def div    (element-for-tag :div))
+(def form   (element-for-tag :form))
+(def h1     (element-for-tag :h1))
+(def h2     (element-for-tag :h2))
+(def head   (element-for-tag :head))
+(def html   (element-for-tag :html))
+(def img    (element-for-tag :img))
+(def input  (element-for-tag :input))
+(def label  (element-for-tag :label))
+(def link   (element-for-tag :link))
+(def p      (element-for-tag :p))
+(def script (element-for-tag :script))
+(def span   (element-for-tag :span))
+(def style  (element-for-tag :style))
+(def title  (element-for-tag :title))
 
 (defn element-by-id
   "The element with id, adding tag with that id to body if necessary."
@@ -140,7 +152,7 @@
                      :map map
                      :icon (goog-map-micon (:color guy))
                      :animation animation
-                     :visible true)))))
+                     :visible (not (@invisible-markers (:id guy))))))))
 
 (defn map-guys
   "A new map showing all the guys."
@@ -168,17 +180,31 @@
   [guy]
   (div {:id (:title guy) :class :guy}
        (span {}
-             (input {:type :checkbox :checked true})
+             (let [id (:id guy)]
+               (doto (input {:type :checkbox :checked (marker-visible? id)})
+                       (goog.events/listen "click" #(toggle-visible! id))))
              (goog-legend-icon-for guy)
              (:title guy))))
+
+(defn legend-show
+  [show?]
+  (let [legend (element-by-id :legend)]
+    (log [:legend-show {:legend legend :show? show?}])
+    (set-attributes legend {:class (if show? "legend show" "legend")})))
 
 (defn legend
   [state]
   (let [you (:you state)
         guys (remove #(= (:id you) (:id %)) (:all state))]
     (log guys)
-    (apply (partial div {:class "legend show"})
+    (apply (partial div {:id :legend :class "legend show"})
            (form {}
+                 (div {:class :buttons}
+                      (span {:class :guy :id :close :align :left}
+                            (button {:type :button} "Where is everyone?"))
+                      (span {:class :guy :id :close :align :right}
+                            (doto (button {:type :button} "Close")
+                              (goog.events/listen "click" #(legend-show false)))))
                  (div {:class :guy :id (:title you)}
                       (span {}
                             (input {:type :checkbox :checked true})
@@ -186,10 +212,12 @@
                             (input {:type :text :value (:title you)}))))
            (for [guy guys] (legend-for-guy guy)))))
 
-(defn show-page
+(defn page
   [state]
   (html {}
         (head {}
+              (script {:type "text/javascript" :src "out/goog/base.js"})
+              (link {:type :text/css :rel :stylesheet :href "./moot.css"})
               (title {} "Where is everyone?")
               (style {}))
         (body {}
@@ -197,4 +225,4 @@
               (legend state))
         (map-guys (:all state))))
 
-(goog.events/listen js/window "load" #(show-page @state))
+(goog.events/listen js/window "load" #(page @state))
