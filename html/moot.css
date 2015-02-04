@@ -5,6 +5,7 @@ body { -webkit-animation: androidBugfix infinite 1s; }
 
 * {
     box-sizing: border-box;
+    font: 15px arial, sans-serif;
 }
 
 html {

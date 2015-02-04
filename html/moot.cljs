@@ -1,31 +1,34 @@
 (ns moot
-  (:require
-   [goog.events :as goog.events]))
+  (:require [goog.events :as goog.events]))
 
 (def state
   "The state of the client."
   (atom
-   {:you  {:title "Mr Pink"      :color :pink
+   {:you  {:id 105 :title "Mr Pink"      :color :pink
            :position {:lat 42.365257 :lng -71.087246}}
-    :all [{:title "Mr Blue"      :color :blue
+    :all [{:id 101 :title "Mr Blue"      :color :blue
            :position {:lat 42.357465 :lng -71.095194}}
-          {:title "Mr Green"     :color :green
+          {:id 102 :title "Mr Green"     :color :green
            :position {:lat 42.364251 :lng -71.110300}}
-          {:title "Mr LightBlue" :color :lightblue
+          {:id 103 :title "Mr LightBlue" :color :lightblue
            :position {:lat 42.364876 :lng -71.102352}}
-          {:title "Mr Orange"    :color :orange
+          {:id 104 :title "Mr Orange"    :color :orange
            :position {:lat 42.369347 :lng -71.101107}}
-          {:title "Mr Pink"      :color :pink
+          {:id 105 :title "Mr Pink"      :color :pink
            :position {:lat 42.365257 :lng -71.087246}}
-          {:title "Mr Purple"    :color :purple
+          {:id 106 :title "Mr Purple"    :color :purple
            :position {:lat 42.361198 :lng -71.103983}}
-          {:title "Mr Red"       :color :red
+          {:id 107 :title "Mr Red"       :color :red
            :position {:lat 42.372083 :lng -71.082062}}
-          {:title "Mr Yellow"    :color :yellow
+          {:id 108 :title "Mr Yellow"    :color :yellow
            :position {:lat 42.366465 :lng -71.095194}}]}))
 
+(def markers
+  "The markers on the map."
+  (atom {}))
+
 (def map-marker-icon-colors
-  "The colors available for map marker icons."
+  "The colors available for map marker (x.png and x-dot.png) icons."
   (let [colors [:blue :green :red :yellow :orange :pink :purple]
         dotify (fn [c] (keyword (str (name c) "-dot")))]
     (reduce conj colors (map dotify colors))))
@@ -41,8 +44,6 @@
   (let [parent (get {:head (.-head js/document)
                      :body (.-body js/document)}
                     parent parent)]
-    (log ["append-child" {:parent parent}])
-    (log ["append-child" {:child child}])
     (.appendChild parent child)
     parent))
 
@@ -50,34 +51,43 @@
   "Set attributes on element according to attribute-map."
   [element attribute-map]
   (doseq [[k v] attribute-map]
-    (.setAttribute element (name k) (name v)))
-  element)
-
-(defn create-element
-  "Create an element of kind tag with attributes map."
-  [tag attributes]
-  (let [element (.createElement js/document (name tag))]
-    (set-attributes element attributes)))
+    (let [value (cond (true? v) "true"
+                      (false? v) "false"
+                      (number? v) (str v)
+                      :else (name v))]
+      (.setAttribute element (name k) value))))
 
 (defn element-for-tag
   "An element function for tag that takes an attribute map and a
   sequence of child elements and renders them in HTMl."
   [tag]
-  (fn [attributes & kids]
-    (let [element (create-element tag attributes)]
-      (doseq [kid kids]
-        (cond (instance? js/Element kid) (append-child element kid)
-              (fn? kid) (append-child element kid)
-              :else (append-child element (.createTextNode js/document kid))))
-      element)))
+  (let [make (get {:html #(.-documentElement %)
+                   :head #(.-head %)
+                   :body #(.-body %)} tag
+                   #(.createElement % (name tag)))]
+    (fn [attributes & kids]
+      (let [element (make js/document)]
+        (set-attributes element attributes)
+        (doseq [kid kids]
+          (cond (fn? kid) (append-child element kid)
+                (instance? js/Element kid) (append-child element kid)
+                :else (append-child element (.createTextNode js/document kid))))
+        element))))
 
-(def div  (element-for-tag :div))
-(def h1   (element-for-tag :h1))
-(def h2   (element-for-tag :h2))
-(def img  (element-for-tag :img))
-(def p    (element-for-tag :p))
-(def span (element-for-tag :span))
-(def text (element-for-tag :text))
+(def body  (element-for-tag :body))
+(def div   (element-for-tag :div))
+(def form  (element-for-tag :form))
+(def h1    (element-for-tag :h1))
+(def h2    (element-for-tag :h2))
+(def head  (element-for-tag :head))
+(def html  (element-for-tag :html))
+(def img   (element-for-tag :img))
+(def input (element-for-tag :input))
+(def label (element-for-tag :label))
+(def p     (element-for-tag :p))
+(def span  (element-for-tag :span))
+(def style (element-for-tag :style))
+(def title (element-for-tag :title))
 
 (defn element-by-id
   "The element with id, adding tag with that id to body if necessary."
@@ -129,7 +139,8 @@
      (clj->js (assoc guy
                      :map map
                      :icon (goog-map-micon (:color guy))
-                     :animation animation)))))
+                     :animation animation
+                     :visible true)))))
 
 (defn map-guys
   "A new map showing all the guys."
@@ -147,31 +158,43 @@
         (img {:src (goog-map-icon (:color you)) :alt (:title you)})
         (:title you)))
 
-(defn legend-guy
+(defn goog-legend-icon-for
   [guy]
-  (div {:id (:title guy)
-        :class :guy}
+  (img {:class :legend-icon
+        :src (goog-map-icon (:color guy))
+        :alt (:title guy)}))
+
+(defn legend-for-guy
+  [guy]
+  (div {:id (:title guy) :class :guy}
        (span {}
-             (img {:class :legend-icon
-                   :src (goog-map-icon (:color guy))
-                   :alt (:title guy)})
+             (input {:type :checkbox :checked true})
+             (goog-legend-icon-for guy)
              (:title guy))))
 
 (defn legend
   [state]
   (let [you (:you state)
-        guys (conj (remove #(= you %) (:all state)) you)]
+        guys (remove #(= (:id you) (:id %)) (:all state))]
     (log guys)
     (apply (partial div {:class "legend show"})
-           (for [guy guys] (legend-guy guy)))))
+           (form {}
+                 (div {:class :guy :id (:title you)}
+                      (span {}
+                            (input {:type :checkbox :checked true})
+                            (goog-legend-icon-for you)
+                            (input {:type :text :value (:title you)}))))
+           (for [guy guys] (legend-for-guy guy)))))
 
 (defn show-page
   [state]
-  (append-child :body
-                (div {:class "legend show"}
-                     (legend-guy (:you state))))
-  (append-child :body
-                (legend state))
-  (map-guys (:all state)))
+  (html {}
+        (head {}
+              (title {} "Where is everyone?")
+              (style {}))
+        (body {}
+              (div {:class "legend show"} (legend-for-guy (:you state)))
+              (legend state))
+        (map-guys (:all state))))
 
 (goog.events/listen js/window "load" #(show-page @state))
