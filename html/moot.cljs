@@ -1,40 +1,52 @@
 (ns moot
   (:require [goog.events :as goog.events]))
 
-(def state
-  "The state of the client."
-  (atom
-   {:you  {:id 105 :title "Mr Pink"      :color :pink
-           :position {:lat 42.365257 :lng -71.087246}}
-    :all [{:id 101 :title "Mr Blue"      :color :blue
-           :position {:lat 42.357465 :lng -71.095194}}
-          {:id 102 :title "Mr Green"     :color :green
-           :position {:lat 42.364251 :lng -71.110300}}
-          {:id 103 :title "Mr LightBlue" :color :lightblue
-           :position {:lat 42.364876 :lng -71.102352}}
-          {:id 104 :title "Mr Orange"    :color :orange
-           :position {:lat 42.369347 :lng -71.101107}}
-          {:id 105 :title "Mr Pink"      :color :pink
-           :position {:lat 42.365257 :lng -71.087246}}
-          {:id 106 :title "Mr Purple"    :color :purple
-           :position {:lat 42.361198 :lng -71.103983}}
-          {:id 107 :title "Mr Red"       :color :red
-           :position {:lat 42.372083 :lng -71.082062}}
-          {:id 108 :title "Mr Yellow"    :color :yellow
-           :position {:lat 42.366465 :lng -71.095194}}]}))
-
 (defn log
   "Log msg on the console."
   [msg]
   (.log js/console (pr-str msg)))
 
-(def invisible-markers
-  "Marker is invisible when its id is in this set."
-  (atom #{}))
-(defn marker-visible? [id] (not (contains? @invisible-markers id)))
+(def state
+  "The state of the client."
+  (atom
+   {:you  {:id 105 :title "Mr Pink"      :color :pink
+           :position {:lat 42.365257 :lng -71.087246}}
+    :all #{{:id 101 :title "Mr Blue"      :color :blue
+            :position {:lat 42.357465 :lng -71.095194}}
+           {:id 102 :title "Mr Green"     :color :green
+            :position {:lat 42.364251 :lng -71.110300}}
+           {:id 103 :title "Mr LightBlue" :color :lightblue
+            :position {:lat 42.364876 :lng -71.102352}}
+           {:id 104 :title "Mr Orange"    :color :orange
+            :position {:lat 42.369347 :lng -71.101107}}
+           {:id 105 :title "Mr Pink"      :color :pink
+            :position {:lat 42.365257 :lng -71.087246}}
+           {:id 106 :title "Mr Purple"    :color :purple
+            :position {:lat 42.361198 :lng -71.103983}}
+           {:id 107 :title "Mr Red"       :color :red
+            :position {:lat 42.372083 :lng -71.082062}}
+           {:id 108 :title "Mr Yellow"    :color :yellow
+            :position {:lat 42.366465 :lng -71.095194}}}
+    :markers {}}))
+
+(defn my-name-is!
+  [name]
+  (let [id (get-in @state [:you :id])]
+    (log [:my-name-is! name :id id])
+    (swap! state #(update-in % [:you :title] (constantly name)))
+    (swap! state #(update-in % [:all] conj (:you %)))
+    (.setTitle (get-in @state [:markers id]) name)))
+
+(defn marker-visible?
+  [id]
+  (if-let [marker (get-in @state [:markers id])]
+    (.getVisible marker)
+    true))
+
 (defn toggle-visible!
   [id]
-  (swap! invisible-markers #((if (contains? % id) disj conj) % id)))
+  (if-let [marker (get-in @state [:markers id])]
+    (.setVisible marker (not (.getVisible marker)))))
 
 (def markers
   "The markers on the map."
@@ -83,23 +95,24 @@
                 :else (append-child element (.createTextNode js/document kid))))
         element))))
 
-(def body   (element-for-tag :body))
-(def button (element-for-tag :button))
-(def div    (element-for-tag :div))
-(def form   (element-for-tag :form))
-(def h1     (element-for-tag :h1))
-(def h2     (element-for-tag :h2))
-(def head   (element-for-tag :head))
-(def html   (element-for-tag :html))
-(def img    (element-for-tag :img))
-(def input  (element-for-tag :input))
-(def label  (element-for-tag :label))
-(def link   (element-for-tag :link))
-(def p      (element-for-tag :p))
-(def script (element-for-tag :script))
-(def span   (element-for-tag :span))
-(def style  (element-for-tag :style))
-(def title  (element-for-tag :title))
+(def body     (element-for-tag :body))
+(def button   (element-for-tag :button))
+(def div      (element-for-tag :div))
+(def form     (element-for-tag :form))
+(def h1       (element-for-tag :h1))
+(def h2       (element-for-tag :h2))
+(def head     (element-for-tag :head))
+(def html     (element-for-tag :html))
+(def img      (element-for-tag :img))
+(def input    (element-for-tag :input))
+(def label    (element-for-tag :label))
+(def link     (element-for-tag :link))
+(def p        (element-for-tag :p))
+(def script   (element-for-tag :script))
+(def span     (element-for-tag :span))
+(def style    (element-for-tag :style))
+(def textarea (element-for-tag :textarea))
+(def title    (element-for-tag :title))
 
 (defn element-by-id
   "The element with id, adding tag with that id to body if necessary."
@@ -146,13 +159,15 @@
   [map guy & animate]
   (let [animation (get {:bounce google.maps.Animation.BOUNCE
                         :drop   google.maps.Animation.DROP}
-                       (first animate))]
-    (google.maps.Marker.
-     (clj->js (assoc guy
-                     :map map
-                     :icon (goog-map-micon (:color guy))
-                     :animation animation
-                     :visible (not (@invisible-markers (:id guy))))))))
+                       (first animate))
+        make (fn [m]
+               (google.maps.Marker.
+                (clj->js (assoc guy
+                                :map map
+                                :icon (goog-map-micon (:color guy))
+                                :animation animation
+                                :visible (if m (.getVisible m) true)))))]
+    (swap! state #(update-in % [:markers (:id guy)] make))))
 
 (defn map-guys
   "A new map showing all the guys."
@@ -182,7 +197,7 @@
        (span {}
              (let [id (:id guy)]
                (doto (input {:type :checkbox :checked (marker-visible? id)})
-                       (goog.events/listen "click" #(toggle-visible! id))))
+                 (goog.events/listen "click" #(toggle-visible! id))))
              (goog-legend-icon-for guy)
              (:title guy))))
 
@@ -198,26 +213,28 @@
         guys (remove #(= (:id you) (:id %)) (:all state))]
     (log guys)
     (apply (partial div {:id :legend :class "legend show"})
-           (form {}
-                 (div {:class :buttons}
-                      (span {:class :guy :id :close :align :left}
-                            (button {:type :button} "Where is everyone?"))
-                      (span {:class :guy :id :close :align :right}
-                            (doto (button {:type :button} "Close")
-                              (goog.events/listen "click" #(legend-show false)))))
-                 (div {:class :guy :id (:title you)}
-                      (span {}
-                            (input {:type :checkbox :checked true})
-                            (goog-legend-icon-for you)
-                            (input {:type :text :value (:title you)}))))
+           (div {:class :buttons}
+                (span {:class :guy :id :close :align :left}
+                      (button {:type :button} "Where is everyone?"))
+                (span {:class :guy :id :close :align :right}
+                      (doto (button {:type :button} "Close")
+                        (goog.events/listen "click" #(legend-show false)))))
+           (div {:class :guy :id (:title you)}
+                (span {}
+                      (input {:type :checkbox :checked true})
+                      (goog-legend-icon-for you)
+                      (let [text (input {:type :text :value (:title you)})]
+                        (doto text
+                          (goog.events/listen "keyup"
+                                              #(my-name-is! (.-value text)))))))
            (for [guy guys] (legend-for-guy guy)))))
 
 (defn page
   [state]
   (html {}
         (head {}
-              (script {:type "text/javascript" :src "out/goog/base.js"})
               (link {:type :text/css :rel :stylesheet :href "./moot.css"})
+              (script {:type "text/javascript" :src "out/goog/base.js"})
               (title {} "Where is everyone?")
               (style {}))
         (body {}
