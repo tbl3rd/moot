@@ -27,7 +27,8 @@
             :position {:lat 42.372083 :lng -71.082062}}
            {:id 108 :title "Mr Yellow"    :color :yellow
             :position {:lat 42.366465 :lng -71.095194}}}
-    :markers {}}))
+    :markers {}
+    :the-map nil}))
 
 (defn my-name-is!
   "Update your name everywhere it matters."
@@ -52,11 +53,11 @@
   (if-let [marker (get-in @state [:markers id])]
     (.setVisible marker (not (.getVisible marker)))))
 
-(def map-marker-icon-colors
+(def marker-icon-colors
   "The colors available for map marker (x.png and x-dot.png) icons."
   (let [colors [:blue :green :red :yellow :orange :pink :purple]
-        dotify (fn [c] (keyword (str (name c) "-dot")))]
-    (reduce conj colors (map dotify colors))))
+        dotted (map #(keyword (str (name %) "-dot")) colors)]
+    (reduce conj colors dotted)))
 
 (defn append-child
   "Append HTML element child to parent."
@@ -156,37 +157,60 @@
   (let [base "http://maps.google.com/mapfiles/ms/micons/"]
     (str base (name color) ".png")))
 
+(defn animate-marker!
+  "Animate marker with id according to how for 2 seconds."
+  [id & how]
+  (let [how (first how)]
+    (if how (.setTimeout js/window #(animate-marker! id) 2100))
+    (if-let [marker (get-in @state [:markers id])]
+      (.setAnimation
+       marker
+       (get {:bounce google.maps.Animation.BOUNCE
+             :drop   google.maps.Animation.DROP} how how)))))
+
 (defn mark-guy
   "Drop a marker for guy on map with optional animation."
   [map guy & animate]
-  (let [animation (get {:bounce google.maps.Animation.BOUNCE
-                        :drop   google.maps.Animation.DROP}
-                       (first animate))
-        make (fn [m]
-               (google.maps.Marker.
-                (clj->js (assoc guy
-                                :map map
-                                :icon (goog-map-micon (:color guy))
-                                :animation animation
-                                :visible (if m (.getVisible m) true)))))]
-    (swap! state #(update-in % [:markers (:id guy)] make))))
+  (letfn [(make [m]
+            (google.maps.Marker.
+             (clj->js (assoc guy
+                             :map map
+                             :icon (goog-map-micon (:color guy))
+                             :visible (if m (.getVisible m) true)))))]
+    (swap! state #(update-in % [:markers (:id guy)] make))
+    (animate-marker! (:id guy) :drop)))
 
-(defn map-guys
+(defn new-map-guys
   "A new map showing all the guys."
   [guys]
   (let [bound (new-goog-bound (map (comp new-goog-latlng :position) guys))
-        options {:center (.getCenter bound) :zoom 8}
-        result (new-goog-map (element-by-id :map :div) options)]
-    (.fitBounds result bound)
-    (doseq [guy guys] (mark-guy result guy :drop))
+        bottom-right google.maps.ControlPosition/BOTTOM_RIGHT
+        options {:center (.getCenter bound)
+                 :zoom 8
+                 :panControlOptions {:position bottom-right}
+                 :zoomControlOptions {:position bottom-right}}
+        result (element-by-id :the-map :div)
+        the-map (new-goog-map result options)]
+    (.fitBounds the-map bound)
+    (doseq [guy guys] (mark-guy the-map guy :drop))
+    (swap! state #(update-in % [:the-map] (constantly the-map)))
     result))
+
+(defn show-all-guys!
+  []
+  (let [state @state]
+    (.fitBounds (:the-map state)
+                (new-goog-bound
+                 (map (comp new-goog-latlng :position)
+                      (:all state))))))
 
 (defn goog-icon-img-for
   "The icon image for guy."
   [guy]
-  (img {:class :legend-icon
-        :src (goog-map-icon (:color guy))
-        :alt (:title guy)}))
+  (doto (img {:class :legend-icon
+              :src (goog-map-icon (:color guy))
+              :alt (:title guy)})
+    (goog.events/listen "click" #(animate-marker! (:id guy) :bounce))))
 
 (defn legend-for-guy
   "The legend entry for guy."
@@ -205,27 +229,31 @@
                      (goog.events/listen "keyup" #(my-name-is! (.-value text)))))
                  title)))))
 
-(defn legend-show
+(defn show-legend
   "Show the legend if show?.  Otherwise hide it."
   [show?]
-  (let [legend (element-by-id :legend)]
-    (log [:legend-show {:legend legend :show? show?}])
+  (let [legend (element-by-id :legend)
+        you (element-by-id :you)]
+    (log [:show-legend {:legend legend :show? show?}])
+    (set-attributes you {:class (if show? "legend" "legend show")})
     (set-attributes legend {:class (if show? "legend show" "legend")})))
 
 (defn legend
   "Render the legend according to state."
   [state]
   (let [you (:you state)
-        guys (cons you (remove #(= (:id you) (:id %)) (:all state)))]
-    (log guys)
-    (apply (partial div {:id :legend :class "legend show"})
-           (div {:class :buttons}
-                (span {:class :guy :id :close :align :left}
-                      (button {:type :button} "Where is everyone?"))
-                (span {:class :guy :id :close :align :right}
-                      (doto (button {:type :button} "Close")
-                        (goog.events/listen "click" #(legend-show false)))))
-           (for [guy guys] (legend-for-guy guy)))))
+        guys (cons you (remove #(= (:id you) (:id %)) (:all state)))
+        buttons
+        (div {:class :buttons}
+             (span {:class :guy :id :close :align :left}
+                   (doto (button {:type :button} "Where is everyone?")
+                     (goog.events/listen "click" show-all-guys!)))
+             (span {:class :guy :id :close :align :right}
+                   (doto (button {:type :button} "Close")
+                     (goog.events/listen "click" #(show-legend false)))))]
+    (apply (partial div {:id :legend :class "legend"})
+           (concat (for [guy guys] (legend-for-guy guy))
+                   (list buttons)))))
 
 (defn page
   "Render the page HTML."
@@ -237,8 +265,18 @@
               (title {} "Where is everyone?")
               (style {}))
         (body {}
-              (div {:class "legend show"} (legend-for-guy (:you state)))
-              (legend state))
-        (map-guys (:all state))))
+              (legend state)
+              (let [you (:you state)
+                    title (:title you)]
+                (doto (div {:id :you :class "legend show"}
+                           (div {:id title :class :guy}
+                                (span {}
+                                      (input {:type :checkbox
+                                              :disabled true
+                                              :checked (marker-visible? id)})
+                                      (goog-icon-img-for you)
+                                      title)))
+                  (goog.events/listen "click" #(show-legend true))))
+              (new-map-guys (:all state)))))
 
 (goog.events/listen js/window "load" #(page @state))

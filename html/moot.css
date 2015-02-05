@@ -20,7 +20,7 @@ body {
     padding: 0;
 }
 
-#map {
+#the-map {
     height: 100%;
     width: 100%;
 }
@@ -31,6 +31,7 @@ body {
     position: fixed;
     background: #fff;
     opacity: 0;
+    overflow: auto;
     pointer-events: inherit;
     z-index: 99;
     -webkit-transition: all 0.25s ease-out;
