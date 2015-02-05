@@ -30,27 +30,27 @@
     :markers {}}))
 
 (defn my-name-is!
+  "Update your name everywhere it matters."
   [name]
   (let [id (get-in @state [:you :id])]
     (log [:my-name-is! name :id id])
-    (swap! state #(update-in % [:you :title] (constantly name)))
-    (swap! state #(update-in % [:all] conj (:you %)))
+    (swap! state (fn [state]
+                   (let [state (update-in state [:you :title] (constantly name))]
+                     (update-in state [:all] conj (:you state)))))
     (.setTitle (get-in @state [:markers id]) name)))
 
 (defn marker-visible?
+  "True if marker for id is visible.  False otherwise."
   [id]
   (if-let [marker (get-in @state [:markers id])]
     (.getVisible marker)
     true))
 
 (defn toggle-visible!
+  "Toggle visibility of marker with id."
   [id]
   (if-let [marker (get-in @state [:markers id])]
     (.setVisible marker (not (.getVisible marker)))))
-
-(def markers
-  "The markers on the map."
-  (atom {}))
 
 (def map-marker-icon-colors
   "The colors available for map marker (x.png and x-dot.png) icons."
@@ -145,11 +145,13 @@
   (google.maps.Map. element (clj->js options)))
 
 (defn goog-map-icon
+  "The icon with color."
   [color]
   (let [base "http://maps.google.com/mapfiles/ms/icons/"]
     (str base (name color) ".png")))
 
 (defn goog-map-micon
+  "The micon with color.  (Not sure what the difference is.)"
   [color]
   (let [base "http://maps.google.com/mapfiles/ms/micons/"]
     (str base (name color) ".png")))
@@ -179,38 +181,42 @@
     (doseq [guy guys] (mark-guy result guy :drop))
     result))
 
-(defn you-are
-  [you]
-  (span {:id :you}
-        (img {:src (goog-map-icon (:color you)) :alt (:title you)})
-        (:title you)))
-
-(defn goog-legend-icon-for
+(defn goog-icon-img-for
+  "The icon image for guy."
   [guy]
   (img {:class :legend-icon
         :src (goog-map-icon (:color guy))
         :alt (:title guy)}))
 
 (defn legend-for-guy
+  "The legend entry for guy."
   [guy]
-  (div {:id (:title guy) :class :guy}
-       (span {}
-             (let [id (:id guy)]
+  (let [id (:id guy)
+        title (:title guy)
+        you? (= (get-in @state [:you :id]) id)]
+    (div {:id title :class :guy}
+         (span {}
                (doto (input {:type :checkbox :checked (marker-visible? id)})
-                 (goog.events/listen "click" #(toggle-visible! id))))
-             (goog-legend-icon-for guy)
-             (:title guy))))
+                 (goog.events/listen "click" #(toggle-visible! id)))
+               (goog-icon-img-for guy)
+               (if you?
+                 (let [text (input {:type :text :value title})]
+                   (doto text
+                     (goog.events/listen "keyup" #(my-name-is! (.-value text)))))
+                 title)))))
 
 (defn legend-show
+  "Show the legend if show?.  Otherwise hide it."
   [show?]
   (let [legend (element-by-id :legend)]
     (log [:legend-show {:legend legend :show? show?}])
     (set-attributes legend {:class (if show? "legend show" "legend")})))
 
 (defn legend
+  "Render the legend according to state."
   [state]
   (let [you (:you state)
-        guys (remove #(= (:id you) (:id %)) (:all state))]
+        guys (cons you (remove #(= (:id you) (:id %)) (:all state)))]
     (log guys)
     (apply (partial div {:id :legend :class "legend show"})
            (div {:class :buttons}
@@ -219,17 +225,10 @@
                 (span {:class :guy :id :close :align :right}
                       (doto (button {:type :button} "Close")
                         (goog.events/listen "click" #(legend-show false)))))
-           (div {:class :guy :id (:title you)}
-                (span {}
-                      (input {:type :checkbox :checked true})
-                      (goog-legend-icon-for you)
-                      (let [text (input {:type :text :value (:title you)})]
-                        (doto text
-                          (goog.events/listen "keyup"
-                                              #(my-name-is! (.-value text)))))))
            (for [guy guys] (legend-for-guy guy)))))
 
 (defn page
+  "Render the page HTML."
   [state]
   (html {}
         (head {}
