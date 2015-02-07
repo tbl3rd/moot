@@ -184,7 +184,7 @@
   "A new map showing all the guys."
   [guys]
   (let [bound (new-goog-bound (map (comp new-goog-latlng :position) guys))
-        bottom-right google.maps.ControlPosition/BOTTOM_RIGHT
+        bottom-right google.maps.ControlPosition.BOTTOM_RIGHT
         options {:center (.getCenter bound)
                  :zoom 8
                  :panControlOptions {:position bottom-right}
@@ -238,7 +238,7 @@
     (set-attributes you {:class (if show? "legend" "legend show")})
     (set-attributes legend {:class (if show? "legend show" "legend")})))
 
-(defn legend
+(defn render-legend
   "Render the legend according to state."
   [state]
   (let [you (:you state)
@@ -265,7 +265,7 @@
               (title {} "Where is everyone?")
               (style {}))
         (body {}
-              (legend state)
+              (render-legend state)
               (let [you (:you state)
                     title (:title you)]
                 (doto (div {:id :you :class "legend show"}
@@ -273,7 +273,7 @@
                                 (span {}
                                       (input {:type :checkbox
                                               :disabled true
-                                              :checked (marker-visible? id)})
+                                              :checked (marker-visible? (:id you))})
                                       (goog-icon-img-for you)
                                       title)))
                   (goog.events/listen "click" #(show-legend true))))
