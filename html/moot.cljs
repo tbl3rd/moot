@@ -238,6 +238,21 @@
     (set-attributes you {:class (if show? "legend" "legend show")})
     (set-attributes legend {:class (if show? "legend show" "legend")})))
 
+(defn render-you
+  [state]
+  (let [you (:you state)
+        title (:title you)
+        visible? (marker-visible? (:id you))]
+    (doto (div {:id :you :class "legend show"}
+               (div {:id title :class :guy}
+                    (span {}
+                          (input {:type :checkbox
+                                  :disabled true
+                                  :checked visible?})
+                          (goog-icon-img-for you)
+                          title)))
+      (goog.events/listen "click" #(show-legend true)))))
+
 (defn render-legend
   "Render the legend according to state."
   [state]
@@ -266,17 +281,7 @@
               (style {}))
         (body {}
               (render-legend state)
-              (let [you (:you state)
-                    title (:title you)]
-                (doto (div {:id :you :class "legend show"}
-                           (div {:id title :class :guy}
-                                (span {}
-                                      (input {:type :checkbox
-                                              :disabled true
-                                              :checked (marker-visible? (:id you))})
-                                      (goog-icon-img-for you)
-                                      title)))
-                  (goog.events/listen "click" #(show-legend true))))
+              (render-you state)
               (new-map-guys (:all state)))))
 
 (goog.events/listen js/window "load" #(page @state))
