@@ -1,5 +1,6 @@
 (ns moot
-  (:require [goog.events :as goog.events]))
+  (:require [clojure.string :as s]
+            [goog.events :as goog.events]))
 
 (defn log
   "Log msg on the console."
@@ -57,6 +58,40 @@
   (let [colors [:blue :green :red :yellow :orange :pink :purple]
         dotted (map #(keyword (str (name %) "-dot")) colors)]
     (reduce conj colors dotted)))
+
+(defn css
+  "(css #{:body :html} {:height {:% 100} :width {:% 100}})
+  ;=> body,html{height:100%;width:100%}
+  (css [:ul :li] {:color :red :padding {:px 5})
+  ;=> ul li { color:red; padding:5px}
+  ... and so on."
+  [select stuff]
+  (let [maker (fn [punct] (fn [stuff] (s/join punct (map name stuff))))
+        comma (maker ",") space (maker " ")
+        value (fn [x]
+                (cond (keyword? x) (name x)
+                      (number? x) x
+                      (string? x) (str "'" x "'")
+                      (vector? x) (space x)
+                      (map? x) (let [[k v] (first x)] (str v (name k)))
+                      (set? x) (comma x)
+                      (fn? x) (x)
+                      :else (doto x #(js/alert (pr-str {:css-value %})))))]
+    (str (cond (fn? select) (select)
+               (set? select) (comma select)
+               (vector? select) (space select)
+               (keyword? select) (name select)
+               :else (doto select #(js/alert (pr-str {:css-select %}))))
+         (cond (fn? stuff) (stuff)
+               (map? stuff) (str
+                             "{"
+                             (s/join
+                              (map (fn [[k v]] (str k ":" v ";"))
+                                   (for [[k v] stuff] [(name k) (value v)])))
+                             "}")
+               (string? stuff) stuff
+               (keyword? stuff) (name stuff)
+               :else (doto stuff #(js/alert (pr-str {:css-rules %})))))))
 
 (defn append-child
   "Append HTML element child to parent."
@@ -184,6 +219,8 @@
                  :zoomControlOptions {:position bottom-right}}
         result (or (element-by-id :the-map) (div {:id :the-map}))
         the-map (new-goog-map result options)]
+    (aset result "style" "height" "100%")
+    (aset result "style" "width"  "100%")
     (.fitBounds the-map bound)
     (doseq [guy guys] (mark-guy the-map guy :drop))
     (swap! state #(update-in % [:the-map] (constantly the-map)))
@@ -229,10 +266,10 @@
                :you    {true "none" false "flex"}}]
     (letfn [(setter!
               [id show]
-              (set! (-> id element-by-id .-style .-display)
+              (aset (element-by-id id) "style" "display"
                     (get-in table [id show])))]
-     (setter! :legend show?)
-     (setter! :you    show?))))
+      (setter! :legend show?)
+      (setter! :you    show?))))
 
 (defn render-you
   "Render the abbreviated you legend."
@@ -248,7 +285,6 @@
                                        :checked visible?})
                                (goog-icon-img-for you)
                                title)))]
-    (set! (-> result .-style .-display) "flex")
     (goog.events/listen result "click" #(show-legend! true))
     result))
 
@@ -267,7 +303,6 @@
         result (apply (partial div {:id :legend :class "legend"})
                       (concat (for [guy guys] (legend-for-guy guy))
                               (list buttons)))]
-    (set! (-> result .-style .-display) "none")
     (goog.events/listen close "click" #(show-legend! false))
     result))
 
@@ -277,12 +312,25 @@
   (html {}
         (head {}
               (link {:type :text/css :rel :stylesheet :href "./moot.css"})
-              (script {:type "text/javascript" :src "out/goog/base.js"})
-              (title {} "Where is everyone?")
-              (style {}))
+              (style {:id :webkit-refresh-workaround}
+                     (css ["@-webkit-keyframes" :androidBugfix]
+                          (let [padding "{ padding: 0; }"
+                                from-to ["{" "from" padding "to" padding "}"]]
+                            (constantly (s/join " " from-to))))
+                     (css :body {:-webkit-animation
+                                 (constantly "androidBugfix infinite 1s")}))
+              (style {}
+                     (css :* {:box-sizing :border-box
+                              :font (constantly "15px arial, sans-serif")})
+                     (css #{:html :body} {:margin 0
+                                          :height {:% 100}
+                                          :width  {:% 100}})))
+        (script {:type "text/javascript" :src "out/goog/base.js"})
+        (title {} "Where is everyone?")
         (body {}
               (render-you state)
               (render-legend state)
-              (new-map-guys (:all state)))))
+              (new-map-guys (:all state))))
+  (show-legend! false))
 
 (goog.events/listen js/window "load" #(page @state))
