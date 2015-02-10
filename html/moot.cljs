@@ -10,7 +10,7 @@
 (def state
   "The state of the client."
   (atom
-   {:you  {:id 105 :title "Mr Pink"      :color :pink
+   {:you  { :id 105 :title "Mr Pink"      :color :pink
            :position {:lat 42.365257 :lng -71.087246}}
     :all #{{:id 101 :title "Mr Blue"      :color :blue
             :position {:lat 42.357465 :lng -71.095194}}
@@ -93,7 +93,21 @@
                       (map? x) (let [[k v] (first x)] (str v (name k)))
                       (set? x) (comma x)
                       (fn? x) (x)
-                      :else (doto x #(js/alert (pr-str {:css-value %})))))]
+                      :else (doto x #(js/alert (pr-str {:css-value %})))))
+        prefix (fn [property setting]
+                 (for [p (map #(str (name %) (name (first property)))
+                              (cons "" (rest property)))]
+                   [p setting]))
+        proper (fn [props]
+                 (for [[k v] props]
+                   (cond (keyword? k) [[(name k) (value v)]]
+                         (string? k) [[k (value v)]]
+                         (vector? k) (prefix k (value v))
+                         :else (pr-str [:css-map { :k k :v v}]))))
+        rejoin (fn [props]
+                 (s/join (map (fn [[k v]] (str k ":" v ";"))
+                              (apply concat (proper props)))))
+        expand (fn [props] (str "{" (rejoin props) "}"))]
     (str (cond (keyword? select) (name select)
                (string? select) select
                (vector? select) (space select)
@@ -102,12 +116,7 @@
                :else (doto select #(js/alert (pr-str {:css-select %}))))
          (cond (string? props) props
                (keyword? props) (name props)
-               (map? props) (str
-                             "{"
-                             (s/join
-                              (map (fn [[k v]] (str k ":" v ";"))
-                                   (for [[k v] props] [(name k) (value v)])))
-                             "}")
+               (map? props) (expand props)
                (fn? props) (props)
                :else (doto props #(js/alert (pr-str {:css-rules %})))))))
 
@@ -295,13 +304,12 @@
   [state]
   (let [you (:you state)
         title (:title you)
-        visible? (marker-visible? (:id you))
         result (div {:id :you :class "legend"}
                     (div {:id title :class :guy}
                          (span {}
                                (input {:type :checkbox
                                        :disabled true
-                                       :checked visible?})
+                                       :checked  (marker-visible? (:id you))})
                                (goog-icon-img-for you)
                                title)))]
     (goog.events/listen result "click" #(show-legend! true))
@@ -339,24 +347,22 @@
 (defn style-other-elements-on-page
   "A style element for the remaining necessary CSS."
   []
-  (let [prefixes ["-webkit-" "-moz-" "-ms-" "-o-" ""]
-        properties (map #(keyword (str % "transition")) prefixes)
-        transition (constantly "all 0.25s ease-out")
-        font (constantly "15px arial, sans-serif")]
-    (style {}
-           (css :* {:box-sizing :border-box :font font})
-           (css #{:html :body} {:margin 0 :height {:% 100} :width  {:% 100}})
-           (css :.legend (reduce conj {:background :#fff
-                                       :display :flex
-                                       :flex-direction :column
-                                       :overflow :auto
-                                       :pointer-events :inherit
-                                       :position :fixed
-                                       :z-index 99}
-                                 (for [p properties] [p transition])))
-           (css :img.legend-icon {:vertical-align :middle})
-           (css :.guy {:margin {:px 10}})
-           (css :.buttons {:margin {:px 5}}))))
+  (style {}
+         (css :* {:box-sizing :border-box
+                  :font (constantly "15px arial, sans-serif")})
+         (css #{:html :body} {:margin 0 :height {:% 100} :width  {:% 100}})
+         (css :.legend {:background :#fff
+                        :display :flex
+                        :flex-direction :column
+                        :overflow :auto
+                        :pointer-events :inherit
+                        :position :fixed
+                        :z-index 99
+                        [:transition :-webkit- :-moz- :-ms- :-o-]
+                        (constantly "all 0.25s ease-out")})
+         (css :img.legend-icon {:vertical-align :middle})
+         (css :.guy {:margin {:px 10}})
+         (css :.buttons {:margin {:px 5}})))
 
 (defn page
   "Render the page HTML."
