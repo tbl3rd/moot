@@ -306,25 +306,46 @@
     (goog.events/listen close "click" #(show-legend! false))
     result))
 
+(defn style-webkit-refresh-workaround
+  "A style element to workaround refresh problems in webkit."
+  []
+  (style {:id :webkit-refresh-workaround}
+         (css ["@-webkit-keyframes" :androidBugfix]
+              (let [padding "{ padding: 0; }"
+                    from-to ["{" "from" padding "to" padding "}"]]
+                (constantly (s/join " " from-to))))
+         (css :body {:-webkit-animation
+                     (constantly "androidBugfix infinite 1s")})))
+
+(defn style-other-elements-on-page
+  "A style element for the remaining necessary CSS."
+  []
+  (let [prefixes ["-webkit-" "-moz-" "-ms-" "-o-" ""]
+        properties (map #(keyword (str % "transition")) prefixes)
+        transition (constantly "all 0.25s ease-out")
+        font (constantly "15px arial, sans-serif")]
+    (style {}
+           (css :* {:box-sizing :border-box :font font})
+           (css #{:html :body} {:margin 0 :height {:% 100} :width  {:% 100}})
+           (css :.legend (reduce conj {:background :#fff
+                                       :display :flex
+                                       :flex-direction :column
+                                       :overflow :auto
+                                       :pointer-events :inherit
+                                       :position :fixed
+                                       :z-index 99}
+                                 (for [p properties] [p transition])))
+           (css :img.legend-icon {:vertical-align :middle})
+           (css :.guy {:margin {:px 10}})
+           (css :.buttons {:margin {:px 5}}))))
+
 (defn page
   "Render the page HTML."
   [state]
   (html {}
         (head {}
-              (link {:type :text/css :rel :stylesheet :href "./moot.css"})
-              (style {:id :webkit-refresh-workaround}
-                     (css ["@-webkit-keyframes" :androidBugfix]
-                          (let [padding "{ padding: 0; }"
-                                from-to ["{" "from" padding "to" padding "}"]]
-                            (constantly (s/join " " from-to))))
-                     (css :body {:-webkit-animation
-                                 (constantly "androidBugfix infinite 1s")}))
-              (style {}
-                     (css :* {:box-sizing :border-box
-                              :font (constantly "15px arial, sans-serif")})
-                     (css #{:html :body} {:margin 0
-                                          :height {:% 100}
-                                          :width  {:% 100}})))
+              (style-webkit-refresh-workaround)
+              (style-other-elements-on-page))
         (script {:type "text/javascript" :src "out/goog/base.js"})
         (title {} "Where is everyone?")
         (body {}
