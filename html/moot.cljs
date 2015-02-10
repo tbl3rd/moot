@@ -35,9 +35,10 @@
   "Update your name everywhere it matters."
   [name]
   (let [id (get-in @state [:you :id])]
-    (swap! state (fn [state]
-                   (let [state (update-in state [:you :title] (constantly name))]
-                     (update-in state [:all] conj (:you state)))))
+    (swap! state
+           (fn [state]
+             (let [state (update-in state [:you :title] (constantly name))]
+               (update-in state [:all] conj (:you state)))))
     (.setTitle (get-in @state [:markers id]) name)))
 
 (defn marker-visible?
@@ -60,14 +61,30 @@
     (reduce conj colors dotted)))
 
 (defn css
-  "(css #{:body :html} {:height {:% 100} :width {:% 100}})
-  ;=> body,html{height:100%;width:100%}
-  (css [:ul :li] {:color :red :padding {:px 5})
-  ;=> ul li { color:red; padding:5px}
-  ... and so on."
-  [select stuff]
-  (let [maker (fn [punct] (fn [stuff] (s/join punct (map name stuff))))
-        comma (maker ",") space (maker " ")
+  "A CSS style rule in a string specified in EDN for STYLE elements.
+
+  > (css #{:body :html} (let [all {:% 100}] {:height all :width all}))
+  ;=> body, html { height:100%; width:100% }
+  > (css [:ul :li] {:color :red :padding {:px 5})
+  ;=> ul li { color:red; padding:5px }
+
+  Use a keyword or string SELECT to name a tag class or id.
+  Use a string SELECT for pseudo classes and media queries.
+  A set SELECT is an unordered multiple selector, whereas a vector is
+  an ordered descendant selector.
+  A function SELECT (constantly ...) is a general escape to the above
+  interpretation.  CSS just calls it and uses its value as a selector.
+
+  PROPS specifies the properties, usually as a map with keywords for
+  the property names.  Setting values are a work in progress ...
+  Keyword, string, and number settings evaluate as ... expected.
+  Use a map setting for measures where the key is the units and the
+  value is the quantity: {:s 1} ;=> 1s
+  Again use a function (constantly ...) to escape interpretation.
+  TODO: url(), vendor prefixes ... and so on.  Yes, this is a hack."
+  [select props]
+  (let [joiner (fn [punct] (fn [props] (s/join punct (map name props))))
+        comma (joiner ",") space (joiner " ")
         value (fn [x]
                 (cond (keyword? x) (name x)
                       (number? x) x
@@ -77,21 +94,22 @@
                       (set? x) (comma x)
                       (fn? x) (x)
                       :else (doto x #(js/alert (pr-str {:css-value %})))))]
-    (str (cond (fn? select) (select)
-               (set? select) (comma select)
+    (str (cond (keyword? select) (name select)
+               (string? select) select
                (vector? select) (space select)
-               (keyword? select) (name select)
+               (set? select) (comma select)
+               (fn? select) (select)
                :else (doto select #(js/alert (pr-str {:css-select %}))))
-         (cond (fn? stuff) (stuff)
-               (map? stuff) (str
+         (cond (string? props) props
+               (keyword? props) (name props)
+               (map? props) (str
                              "{"
                              (s/join
                               (map (fn [[k v]] (str k ":" v ";"))
-                                   (for [[k v] stuff] [(name k) (value v)])))
+                                   (for [[k v] props] [(name k) (value v)])))
                              "}")
-               (string? stuff) stuff
-               (keyword? stuff) (name stuff)
-               :else (doto stuff #(js/alert (pr-str {:css-rules %})))))))
+               (fn? props) (props)
+               :else (doto props #(js/alert (pr-str {:css-rules %})))))))
 
 (defn append-child
   "Append HTML element child to parent."
@@ -208,6 +226,15 @@
     (swap! state #(update-in % [:markers (:id guy)] make))
     (animate-marker! (:id guy) :drop)))
 
+(defn show-all-guys!
+  "Adjust the map so that all the markers are on it."
+  []
+  (let [state @state]
+    (.fitBounds (:the-map state)
+                (new-goog-bound
+                 (map (comp new-goog-latlng :position)
+                      (:all state))))))
+
 (defn new-map-guys
   "A new map showing all the guys."
   [guys]
@@ -225,14 +252,6 @@
     (doseq [guy guys] (mark-guy the-map guy :drop))
     (swap! state #(update-in % [:the-map] (constantly the-map)))
     result))
-
-(defn show-all-guys!
-  []
-  (let [state @state]
-    (.fitBounds (:the-map state)
-                (new-goog-bound
-                 (map (comp new-goog-latlng :position)
-                      (:all state))))))
 
 (defn goog-icon-img-for
   "The icon image for guy."
