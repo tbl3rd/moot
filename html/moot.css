@@ -26,11 +26,10 @@ body {
 }
 
 .legend {
-    display: flex;
+    display: hidden;
     flex-direction: column;
     position: fixed;
     background: #fff;
-    opacity: 0;
     overflow: auto;
     pointer-events: inherit;
     z-index: 99;
@@ -39,11 +38,6 @@ body {
     -ms-transition: all 0.25s ease-out;
     -o-transition: all 0.25s ease-out;
     transition: all 0.25s ease-out;
-}
-
-.legend.show {
-    opacity: 1;
-    pointer-events: auto;
 }
 
 img.legend-icon {

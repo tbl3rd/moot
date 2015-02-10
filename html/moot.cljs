@@ -34,7 +34,6 @@
   "Update your name everywhere it matters."
   [name]
   (let [id (get-in @state [:you :id])]
-    (log [:my-name-is! name :id id])
     (swap! state (fn [state]
                    (let [state (update-in state [:you :title] (constantly name))]
                      (update-in state [:all] conj (:you state)))))
@@ -91,8 +90,8 @@
       (let [element (make js/document)]
         (set-attributes element attributes)
         (doseq [kid kids]
-          (cond (fn? kid) (append-child element kid)
-                (instance? js/Element kid) (append-child element kid)
+          (cond (instance? js/Element kid) (append-child element kid)
+                (fn? kid) (js/alert "(fn? kid)")
                 :else (append-child element (.createTextNode js/document kid))))
         element))))
 
@@ -116,15 +115,9 @@
 (def title    (element-for-tag :title))
 
 (defn element-by-id
-  "The element with id, adding tag with that id to body if necessary."
+  "Nil or the element with id."
   ([id]
-   (.getElementById js/document (name id)))
-  ([id tag]
-   (let [tag (if (keyword? tag) (element-for-tag tag) tag)]
-     (if-let [result (element-by-id id)] result
-             (let [result (tag {:id (name id)})]
-               (append-child :body result)
-               result)))))
+   (.getElementById js/document (name id))))
 
 (defn new-goog-latlng
   "A LatLng from lat and lng coordinates or position map."
@@ -189,7 +182,7 @@
                  :zoom 8
                  :panControlOptions {:position bottom-right}
                  :zoomControlOptions {:position bottom-right}}
-        result (element-by-id :the-map :div)
+        result (or (element-by-id :the-map) (div {:id :the-map}))
         the-map (new-goog-map result options)]
     (.fitBounds the-map bound)
     (doseq [guy guys] (mark-guy the-map guy :drop))
@@ -229,46 +222,54 @@
                      (goog.events/listen "keyup" #(my-name-is! (.-value text)))))
                  title)))))
 
-(defn show-legend
+(defn show-legend!
   "Show the legend if show?.  Otherwise hide it."
   [show?]
-  (let [legend (element-by-id :legend)
-        you (element-by-id :you)]
-    (log [:show-legend {:legend legend :show? show?}])
-    (set-attributes you {:class (if show? "legend" "legend show")})
-    (set-attributes legend {:class (if show? "legend show" "legend")})))
+  (let [table {:legend {true "flex" false "none"}
+               :you    {true "none" false "flex"}}]
+    (letfn [(setter!
+              [id show]
+              (set! (-> id element-by-id .-style .-display)
+                    (get-in table [id show])))]
+     (setter! :legend show?)
+     (setter! :you    show?))))
 
 (defn render-you
+  "Render the abbreviated you legend."
   [state]
   (let [you (:you state)
         title (:title you)
-        visible? (marker-visible? (:id you))]
-    (doto (div {:id :you :class "legend show"}
-               (div {:id title :class :guy}
-                    (span {}
-                          (input {:type :checkbox
-                                  :disabled true
-                                  :checked visible?})
-                          (goog-icon-img-for you)
-                          title)))
-      (goog.events/listen "click" #(show-legend true)))))
+        visible? (marker-visible? (:id you))
+        result (div {:id :you :class "legend"}
+                    (div {:id title :class :guy}
+                         (span {}
+                               (input {:type :checkbox
+                                       :disabled true
+                                       :checked visible?})
+                               (goog-icon-img-for you)
+                               title)))]
+    (set! (-> result .-style .-display) "flex")
+    (goog.events/listen result "click" #(show-legend! true))
+    result))
 
 (defn render-legend
   "Render the legend according to state."
   [state]
   (let [you (:you state)
         guys (cons you (remove #(= (:id you) (:id %)) (:all state)))
-        buttons
-        (div {:class :buttons}
-             (span {:class :guy :id :close :align :left}
-                   (doto (button {:type :button} "Where is everyone?")
-                     (goog.events/listen "click" show-all-guys!)))
-             (span {:class :guy :id :close :align :right}
-                   (doto (button {:type :button} "Close")
-                     (goog.events/listen "click" #(show-legend false)))))]
-    (apply (partial div {:id :legend :class "legend"})
-           (concat (for [guy guys] (legend-for-guy guy))
-                   (list buttons)))))
+        close (span {:id :close :class :guy :align :right}
+                    (button {:type :button} "Close"))
+        buttons (div {:class :buttons}
+                     (span {:class :guy :id :close :align :left}
+                           (doto (button {:type :button} "Where is everyone?")
+                             (goog.events/listen "click" show-all-guys!)))
+                     close)
+        result (apply (partial div {:id :legend :class "legend"})
+                      (concat (for [guy guys] (legend-for-guy guy))
+                              (list buttons)))]
+    (set! (-> result .-style .-display) "none")
+    (goog.events/listen close "click" #(show-legend! false))
+    result))
 
 (defn page
   "Render the page HTML."
@@ -280,8 +281,8 @@
               (title {} "Where is everyone?")
               (style {}))
         (body {}
-              (render-legend state)
               (render-you state)
+              (render-legend state)
               (new-map-guys (:all state)))))
 
 (goog.events/listen js/window "load" #(page @state))
