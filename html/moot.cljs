@@ -62,11 +62,14 @@
 
 (defn css
   "A CSS style rule in a string specified in EDN for STYLE elements.
+  WARNING: This function knows nothing about CSS.  GIGO.
 
   > (css #{:body :html} (let [all {:% 100}] {:height all :width all}))
   ;=> body, html { height:100%; width:100% }
   > (css [:ul :li] {:color :red :padding {:px 5})
   ;=> ul li { color:red; padding:5px }
+  > (css :div {[:duration :-o- :-ms-] {:s 1}})
+  ;=> div { duration:1s; -o-duration:1s; -ms-duration:1s; }
 
   Use a keyword or string SELECT to name a tag class or id.
   Use a string SELECT for pseudo classes and media queries.
@@ -80,38 +83,41 @@
   Keyword, string, and number settings evaluate as ... expected.
   Use a map setting for measures where the key is the units and the
   value is the quantity: {:s 1} ;=> 1s
+  Use a vector property to prefix the first element with the rest
+  elements to generate vendor-prefixed properties.
   Again use a function (constantly ...) to escape interpretation.
+
   TODO: url(), vendor prefixes ... and so on.  Yes, this is a hack."
   [select props]
-  (let [joiner (fn [punct] (fn [props] (s/join punct (map name props))))
-        comma (joiner ",") space (joiner " ")
-        value (fn [x]
-                (cond (keyword? x) (name x)
-                      (number? x) x
-                      (string? x) (str "'" x "'")
-                      (vector? x) (space x)
-                      (map? x) (let [[k v] (first x)] (str v (name k)))
-                      (set? x) (comma x)
-                      (fn? x) (x)
-                      :else (doto x #(js/alert (pr-str {:css-value %})))))
-        prefix (fn [property setting]
-                 (for [p (map #(str (name %) (name (first property)))
-                              (cons "" (rest property)))]
-                   [p setting]))
-        proper (fn [props]
-                 (for [[k v] props]
-                   (cond (keyword? k) [[(name k) (value v)]]
-                         (string? k) [[k (value v)]]
-                         (vector? k) (prefix k (value v))
-                         :else (pr-str [:css-map { :k k :v v}]))))
-        rejoin (fn [props]
+  (letfn [(joiner [punct] (fn [props] (s/join punct (map name props))))
+          (value [x]
+            (cond (keyword? x) (name x)
+                  (number? x) x
+                  (string? x) (str "'" x "'")
+                  (vector? x) ((joiner " ") x)
+                  (map? x) (let [[k v] (first x)] (str v (name k)))
+                  (set? x) ((joiner ",") x)
+                  (fn? x) (x)
+                  :else (doto x #(js/alert (pr-str {:css-value %})))))
+          (prefix [property setting]
+            (let [suffix (first property) prefixes (rest property)]
+              (for [p (map #(str (name %) (name suffix)) (cons "" prefixes))]
+                [p setting])))
+          (convert [props]
+            (for [[k v] props]
+              (cond (keyword? k) [[(name k) (value v)]]
+                    (string? k) [[k (value v)]]
+                    (vector? k) (prefix k (value v))
+                    :else (pr-str [:css-map { :k k :v v}]))))
+          (expand [props]
+            (str "{"
                  (s/join (map (fn [[k v]] (str k ":" v ";"))
-                              (apply concat (proper props)))))
-        expand (fn [props] (str "{" (rejoin props) "}"))]
+                              (apply concat (convert props))))
+                 "}"))]
     (str (cond (keyword? select) (name select)
                (string? select) select
-               (vector? select) (space select)
-               (set? select) (comma select)
+               (vector? select) ((joiner " ") select)
+               (set? select) ((joiner ",") select)
                (fn? select) (select)
                :else (doto select #(js/alert (pr-str {:css-select %}))))
          (cond (string? props) props
