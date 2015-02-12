@@ -10,8 +10,8 @@
 (def state
   "The state of the client."
   (atom
-   {:you  { :id 105 :title "Mr Pink"      :color :pink
-           :position {:lat 42.365257 :lng -71.087246}}
+   {:you {:id 105 :title "Mr Pink"      :color :pink
+          :position {:lat 42.365257 :lng -71.087246}}
     :all #{{:id 101 :title "Mr Blue"      :color :blue
             :position {:lat 42.357465 :lng -71.095194}}
            {:id 102 :title "Mr Green"     :color :green
@@ -108,7 +108,7 @@
               (cond (keyword? k) [[(name k) (value v)]]
                     (string? k) [[k (value v)]]
                     (vector? k) (prefix k (value v))
-                    :else (pr-str [:css-map { :k k :v v}]))))
+                    :else (js/alert (pr-str [:css-map { :k k :v v}])))))
           (expand [props]
             (str "{"
                  (s/join (map (fn [[k v]] (str k ":" v ";"))
@@ -375,6 +375,7 @@
   [state]
   (html {}
         (head {}
+              ((element-for-tag :meta) {:charset :utf-8})
               (style-webkit-refresh-workaround)
               (style-other-elements-on-page))
         (script {:type "text/javascript" :src "out/goog/base.js"})
