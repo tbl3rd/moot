@@ -376,10 +376,9 @@
   (html {}
         (head {}
               ((element-for-tag :meta) {:charset :utf-8})
+              (title {} "Where is everyone?")
               (style-webkit-refresh-workaround)
               (style-other-elements-on-page))
-        (script {:type "text/javascript" :src "out/goog/base.js"})
-        (title {} "Where is everyone?")
         (body {}
               (render-you state)
               (render-legend state)
