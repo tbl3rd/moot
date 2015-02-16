@@ -15,7 +15,7 @@
   "Start a browser repl at the cider-repl prompt with: (start-repl)")
 
 (set-env!
- :source-paths   #{"src"}
+ :source-paths   #{"client" "server"}
  :resource-paths #{"html"}
  :dependencies '[[adzerk/boot-cljs      "0.0-2411-3" :scope "test"]
                  [adzerk/boot-cljs-repl "0.1.7"      :scope "test"]

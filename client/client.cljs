@@ -1,4 +1,4 @@
-(ns moot
+(ns client
   (:require [clojure.string :as s]
             [goog.events :as goog.events]))
 
