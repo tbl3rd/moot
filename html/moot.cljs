@@ -9,27 +9,26 @@
 
 (def state
   "The state of the client."
-  (atom
-   {:you {:id 105 :title "Mr Pink"      :color :pink
-          :position {:lat 42.365257 :lng -71.087246}}
-    :all #{{:id 101 :title "Mr Blue"      :color :blue
-            :position {:lat 42.357465 :lng -71.095194}}
-           {:id 102 :title "Mr Green"     :color :green
-            :position {:lat 42.364251 :lng -71.110300}}
-           {:id 103 :title "Mr LightBlue" :color :lightblue
-            :position {:lat 42.364876 :lng -71.102352}}
-           {:id 104 :title "Mr Orange"    :color :orange
-            :position {:lat 42.369347 :lng -71.101107}}
-           {:id 105 :title "Mr Pink"      :color :pink
-            :position {:lat 42.365257 :lng -71.087246}}
-           {:id 106 :title "Mr Purple"    :color :purple
-            :position {:lat 42.361198 :lng -71.103983}}
-           {:id 107 :title "Mr Red"       :color :red
-            :position {:lat 42.372083 :lng -71.082062}}
-           {:id 108 :title "Mr Yellow"    :color :yellow
-            :position {:lat 42.366465 :lng -71.095194}}}
-    :markers {}
-    :the-map nil}))
+  (atom {:you {:id 105 :title "Mr Pink"      :color :pink
+               :position {:lat 42.365257 :lng -71.087246}}
+         :all #{{:id 101 :title "Mr Blue"      :color :blue
+                 :position {:lat 42.357465 :lng -71.095194}}
+                {:id 102 :title "Mr Green"     :color :green
+                 :position {:lat 42.364251 :lng -71.110300}}
+                {:id 103 :title "Mr LightBlue" :color :lightblue
+                 :position {:lat 42.364876 :lng -71.102352}}
+                {:id 104 :title "Mr Orange"    :color :orange
+                 :position {:lat 42.369347 :lng -71.101107}}
+                {:id 105 :title "Mr Pink"      :color :pink
+                 :position {:lat 42.365257 :lng -71.087246}}
+                {:id 106 :title "Mr Purple"    :color :purple
+                 :position {:lat 42.361198 :lng -71.103983}}
+                {:id 107 :title "Mr Red"       :color :red
+                 :position {:lat 42.372083 :lng -71.082062}}
+                {:id 108 :title "Mr Yellow"    :color :yellow
+                 :position {:lat 42.366465 :lng -71.095194}}}
+         :markers {}
+         :the-map nil}))
 
 (defn my-name-is!
   "Update your name everywhere it matters."
@@ -89,13 +88,19 @@
 
   TODO: url(), vendor prefixes ... and so on.  Yes, this is a hack."
   [select props]
-  (letfn [(joiner [punct] (fn [props] (s/join punct (map name props))))
+  (letfn [(units [m] (let [[k v] (first m)] (str v (name k))))
+          (namer [x] (cond (keyword? x) (name x)
+                           (string? x) x
+                           (number? x) x
+                           (map? x) (units x)
+                           (fn? x) (x)))
+          (joiner [punct] (fn [props] (s/join punct (map namer props))))
           (value [x]
             (cond (keyword? x) (name x)
                   (number? x) x
                   (string? x) (str "'" x "'")
                   (vector? x) ((joiner " ") x)
-                  (map? x) (let [[k v] (first x)] (str v (name k)))
+                  (map? x) (units x)
                   (set? x) ((joiner ",") x)
                   (fn? x) (x)
                   :else (doto x #(js/alert (pr-str {:css-value %})))))
@@ -241,7 +246,7 @@
     (swap! state #(update-in % [:markers (:id guy)] make))
     (animate-marker! (:id guy) :drop)))
 
-(defn show-all-guys!
+(defn show-all-guys
   "Adjust the map so that all the markers are on it."
   []
   (let [state @state]
@@ -331,7 +336,7 @@
         buttons (div {:class :buttons}
                      (span {:class :guy :id :close :align :left}
                            (doto (button {:type :button} "Where is everyone?")
-                             (goog.events/listen "click" show-all-guys!)))
+                             (goog.events/listen "click" show-all-guys)))
                      close)
         result (apply (partial div {:id :legend :class "legend"})
                       (concat (for [guy guys] (legend-for-guy guy))
@@ -347,25 +352,26 @@
               (let [padding "{ padding: 0; }"
                     from-to ["{" "from" padding "to" padding "}"]]
                 (constantly (s/join " " from-to))))
-         (css :body {:-webkit-animation
-                     (constantly "androidBugfix infinite 1s")})))
+         (css :body {:-webkit-animation [:androidBugfix :infinite {:s 1}]})))
 
 (defn style-other-elements-on-page
   "A style element for the remaining necessary CSS."
   []
   (style {}
          (css :* {:box-sizing :border-box
-                  :font (constantly "15px arial, sans-serif")})
+                  :font [{:px 15} :arial \, :sans-serif]})
          (css #{:html :body} {:margin 0 :height {:% 100} :width  {:% 100}})
          (css :.legend {:background :#fff
                         :display :flex
+                        :flex [1 1 :auto]
                         :flex-direction :column
-                        :overflow :auto
+                        :overflow-y :auto
+                        :height {:px 0}
                         :pointer-events :inherit
                         :position :fixed
                         :z-index 99
                         [:transition :-webkit- :-moz- :-ms- :-o-]
-                        (constantly "all 0.25s ease-out")})
+                        [:all {:s 0.25} :ease-out]})
          (css :img.legend-icon {:vertical-align :middle})
          (css :.guy {:margin {:px 10}})
          (css :.buttons {:margin {:px 5}})))
