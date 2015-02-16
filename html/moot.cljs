@@ -357,24 +357,24 @@
 (defn style-other-elements-on-page
   "A style element for the remaining necessary CSS."
   []
-  (style {}
-         (css :* {:box-sizing :border-box
-                  :font [{:px 15} :arial \, :sans-serif]})
-         (css #{:html :body} {:margin 0 :height {:% 100} :width  {:% 100}})
-         (css :.legend {:background :#fff
-                        :display :flex
-                        :flex [1 1 :auto]
-                        :flex-direction :column
-                        :overflow-y :auto
-                        :height {:px 0}
-                        :pointer-events :inherit
-                        :position :fixed
-                        :z-index 99
-                        [:transition :-webkit- :-moz- :-ms- :-o-]
-                        [:all {:s 0.25} :ease-out]})
-         (css :img.legend-icon {:vertical-align :middle})
-         (css :.guy {:margin {:px 10}})
-         (css :.buttons {:margin {:px 5}})))
+  (letfn [(prefix [prop] [prop :-webkit- :-moz- :-ms- :-o-])]
+    (style {}
+           (css :* {:box-sizing :border-box
+                    :font [{:px 15} :arial \, :sans-serif]})
+           (css #{:html :body} {:margin 0 :height {:% 100} :width {:% 100}})
+           (css :.legend {:background :#fff
+                          :display :flex
+                          (prefix :flex) [1 1 :auto]
+                          :flex-direction :column
+                          :overflow :auto
+                          :min-height {:px 0}
+                          :pointer-events :inherit
+                          :position :fixed
+                          :z-index 99
+                          (prefix :transition) [:all {:s 0.25} :ease-out]})
+           (css :img.legend-icon {:vertical-align :middle})
+           (css :.guy {:margin {:px 10}})
+           (css :.buttons {:margin {:px 5}}))))
 
 (defn page
   "Render the page HTML."
