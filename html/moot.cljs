@@ -252,8 +252,7 @@
   (let [state @state]
     (.fitBounds (:the-map state)
                 (new-goog-bound
-                 (map (comp new-goog-latlng :position)
-                      (:all state))))))
+                 (map (comp new-goog-latlng :position) (:all state))))))
 
 (defn new-map-guys
   "A new map showing all the guys."
@@ -266,11 +265,10 @@
                  :zoomControlOptions {:position bottom-right}}
         result (or (element-by-id :the-map) (div {:id :the-map}))
         the-map (new-goog-map result options)]
-    (aset result "style" "height" "100%")
-    (aset result "style" "width"  "100%")
     (.fitBounds the-map bound)
     (doseq [guy guys] (mark-guy the-map guy :drop))
     (swap! state #(update-in % [:the-map] (constantly the-map)))
+    #_(js/alert (pr-str {:the-map (:the-map @state)}))
     result))
 
 (defn goog-icon-img-for
@@ -358,23 +356,25 @@
   "A style element for the remaining necessary CSS."
   []
   (letfn [(prefix [prop] [prop :-webkit- :-moz- :-ms- :-o-])]
-    (style {}
-           (css :* {:box-sizing :border-box
-                    :font [{:px 15} :arial \, :sans-serif]})
-           (css #{:html :body} {:margin 0 :height {:% 100} :width {:% 100}})
-           (css :.legend {:background :#fff
-                          :display :flex
-                          (prefix :flex) [1 1 :auto]
-                          :flex-direction :column
-                          :overflow :auto
-                          :min-height {:px 0}
-                          :pointer-events :inherit
-                          :position :fixed
-                          :z-index 99
-                          (prefix :transition) [:all {:s 0.25} :ease-out]})
-           (css :img.legend-icon {:vertical-align :middle})
-           (css :.guy {:margin {:px 10}})
-           (css :.buttons {:margin {:px 5}}))))
+    (let [full {:% 100} full-page {:height full :width full}]
+      (style {}
+             (css :* {:box-sizing :border-box
+                      :font [{:px 15} :arial \, :sans-serif]})
+             (css #{:html :body} (assoc full-page :margin 0))
+             (css :#the-map full-page)
+             (css :.legend {:background :#fff
+                            :display :flex
+                            (prefix :flex) [1 1 :auto]
+                            :flex-direction :column
+                            :overflow :auto
+                            :min-height {:px 0}
+                            :pointer-events :inherit
+                            :position :fixed
+                            :z-index 99
+                            (prefix :transition) [:all {:s 0.25} :ease-out]})
+             (css :img.legend-icon {:vertical-align :middle})
+             (css :.guy {:margin {:px 10}})
+             (css :.buttons {:margin {:px 5}})))))
 
 (defn page
   "Render the page HTML."
