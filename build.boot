@@ -17,10 +17,11 @@
 (set-env!
  :source-paths   #{"client" "server"}
  :resource-paths #{"html"}
- :dependencies '[[adzerk/boot-cljs      "0.0-2411-3" :scope "test"]
-                 [adzerk/boot-cljs-repl "0.1.7"      :scope "test"]
-                 [adzerk/boot-reload    "0.2.0"      :scope "test"]
-                 [pandeiro/boot-http    "0.3.0"      :scope "test"]])
+ :dependencies '[[adzerk/boot-cljs "0.0-2411-3"]
+                 [adzerk/boot-cljs-repl "0.1.7"]
+                 [adzerk/boot-reload "0.2.0"]
+                 [pandeiro/boot-http "0.6.3-SNAPSHOT"]
+                 [ring "1.3.2" ]])
 
 (defn import-environment-variables
   "Add value ${FOO_BAR} to (get-env) for each key :foo-bar in keywords."
@@ -39,15 +40,22 @@
  '[adzerk.boot-cljs      :refer [cljs]]
  '[adzerk.boot-cljs-repl :refer [cljs-repl start-repl]]
  '[adzerk.boot-reload    :refer [reload]]
- '[pandeiro.http         :refer [serve]])
+ '[pandeiro.boot-http    :refer [serve]])
 
 (deftask debug
+  "Debug the moot client and server."
   []
-  (comp (serve :dir "target")
+  (comp (serve :handler 'server/moot-app :reload true)
         (watch)
         (speak)
         (reload)
         (cljs-repl)
         (cljs :optimizations :none
               :source-map true
-              :unified-mode true)))
+              :unified-mode true)
+        (wait)))
+
+(deftask oops
+  "Say Oops"
+  [x exclaim bool "Add an !"]
+  (println (str "Oops" (if exclaim "!" "."))))
