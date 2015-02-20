@@ -13,24 +13,25 @@
             [tailrecursion.boot.core :as boot]))
 
 (defn body-edn
+  "The body of REQUEST parsed as EDN."
   [request]
-  (edn/read
-   (java.io.PushbackReader.
-    (java.io.InputStreamReader.
-     (:body request)))))
+  (edn/read-string
+   (slurp
+    (java.io.PushbackReader.
+     (java.io.InputStreamReader.
+      (:body request))))))
 
-(defn wrap-println
-  [handler]
+(defn wrap-dump-uri
+  "If REQUEST is for URI dump the request and response tagged with MSG."
+  [handler uri msg]
   (fn [request]
     (let [response (handler request)]
-      (if (= "/update" (s/lower-case (:uri request)))
-        (println (pr-str {:request request
-                          :response response
-                          :body (body-edn request)
-                          })))
+      (if (= uri (s/lower-case (:uri request)))
+        (println (pr-str {:msg msg :request request :response response})))
       response)))
 
-(defn handler
+(defn handle-request
+  "Return a response for REQUEST."
   [request]
   (let [method (:request-method request)
         uri (s/lower-case (:uri request))
@@ -38,15 +39,19 @@
     (cond (and (= method :post) (= uri "/update"))
           {:status  200
            :headers {"content-type" "text/plain"}
-           :body "Hello!"})))
+           :body (pr-str (body-edn request))}
+          :else
+          {:status 400
+           :header {"content-type" "text/plain"}
+           :body "Bad request."})))
 
 (def moot-app
   "The server callback entry point."
-  (-> handler
-      ;; (wrap-reload {:dirs ["server"]})
+  (-> handle-request
+      (wrap-dump-uri "/update" :first)
       wrap-params
       (wrap-file "target" {:index-files? true})
       wrap-file-info                    ; works!
-      wrap-println))
+      (wrap-dump-uri "/update" :last)))
 
 (println [:RELOADED 'server])

@@ -381,19 +381,20 @@
              (css :.buttons {:margin {:px 5}})))))
 
 (defn http-post
-  "POST request map to uri then pass response to handle-response."
+  "POST request to uri then pass response to handle-response."
   [uri request handle-response]
-  (let [connection (new goog.net.XhrIo)]
+  (let [connection (goog.net.XhrIo.)]
     (goog.events.listen connection goog.net.EventType/COMPLETE
                         #(handle-response
-                          (cljs.reader/read-string
-                           (. connection getResponseText))))
-    (. connection send uri "POST" request
-       (clj->js {"Content-type" "text/plain"}))))
+                          (reader/read-string
+                           (.getResponseText connection))))
+    (.send connection uri "POST" request
+           (clj->js {"Content-type" "text/plain"}))))
 
 (defn update-location
+  "Update the server with your current location."
   []
-  (http-post "/update" (:you @state) js/alert))
+  (http-post "/update" (pr-str (:you @state)) log))
 
 (defn page
   "Render the page HTML."
