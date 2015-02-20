@@ -1,6 +1,10 @@
 (ns client
-  (:require [clojure.string :as s]
-            [goog.events :as goog.events]))
+  (:require [cljs.reader :as reader]
+            [clojure.string :as s]
+            [goog.dom :as goog.dom]
+            [goog.events :as goog.events]
+            [goog.net.EventType :as goog.net.EventType]
+            [goog.net.XhrIo :as goog.net.XhrIo]))
 
 (defn log
   "Log msg on the console."
@@ -376,6 +380,21 @@
              (css :.guy {:margin {:px 10}})
              (css :.buttons {:margin {:px 5}})))))
 
+(defn http-post
+  "POST request map to uri then pass response to handle-response."
+  [uri request handle-response]
+  (let [connection (new goog.net.XhrIo)]
+    (goog.events.listen connection goog.net.EventType/COMPLETE
+                        #(handle-response
+                          (cljs.reader/read-string
+                           (. connection getResponseText))))
+    (. connection send uri "POST" request
+       (clj->js {"Content-type" "text/plain"}))))
+
+(defn update-location
+  []
+  (http-post "/update" (:you @state) js/alert))
+
 (defn page
   "Render the page HTML."
   [state]
@@ -389,6 +408,7 @@
               (render-you state)
               (render-legend state)
               (new-map-guys (:all state))))
-  (show-legend! false))
+  (show-legend! false)
+  (update-location))
 
 (goog.events/listen js/window "load" #(page @state))

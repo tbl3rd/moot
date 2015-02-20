@@ -21,8 +21,8 @@
                  [adzerk/boot-cljs-repl "0.1.7"]
                  [adzerk/boot-reload "0.2.0"]
                  [pandeiro/boot-http "0.6.3-SNAPSHOT"]
-                 [tailrecursion/boot.core "2.5.1"]
-                 [ring "1.3.2"]])
+                 [ring "1.3.2"]
+                 [tailrecursion/boot.core "2.5.1"]])
 
 (defn import-environment-variables
   "Add value ${FOO_BAR} to (get-env) for each key :foo-bar in keywords."
