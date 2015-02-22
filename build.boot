@@ -15,8 +15,8 @@
   "Start a browser repl at the cider-repl prompt with: (start-repl)")
 
 (set-env!
- :source-paths   #{"client" "server"}
- :resource-paths #{"html"}
+ :source-paths   #{"src"}
+ :resource-paths #{"www"}
  :dependencies '[[adzerk/boot-cljs "0.0-2411-3"]
                  [adzerk/boot-cljs-repl "0.1.7"]
                  [adzerk/boot-reload "0.2.0"]
@@ -46,7 +46,7 @@
 (deftask debug
   "Debug the moot client and server."
   []
-  (comp (http/serve :handler 'server/moot-app :reload true)
+  (comp (http/serve :handler 'moot.server/moot-app :reload true)
         (watch)
         (speak)
         (reload)

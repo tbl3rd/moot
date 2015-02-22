@@ -1,4 +1,4 @@
-(ns server
+(ns moot.server
   (:import [java.io InputStreamReader PushbackReader])
   (:require [clojure.string :as s]
             [clojure.tools.reader.edn :as edn]

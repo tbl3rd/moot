@@ -1,4 +1,4 @@
-(ns client
+(ns moot.client
   (:require [cljs.reader :as reader]
             [clojure.string :as s]
             [goog.dom :as goog.dom]
