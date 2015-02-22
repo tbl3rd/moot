@@ -12,6 +12,51 @@
             [ring.util.response]
             [tailrecursion.boot.core :as boot]))
 
+(def the-next-id (atom 0))
+(defn get-next-id [] (swap! the-next-id inc))
+
+(def the-maps
+  "The participants in a map indexed by ID."
+  (atom {901 {101 {:id 101 :title "Mr Blue"      :color :blue
+                   :position {:lat 42.357465 :lng -71.095194}}
+              102 {:id 102 :title "Mr Green"     :color :green
+                   :position {:lat 42.364251 :lng -71.110300}}
+              103 {:id 103 :title "Mr LightBlue" :color :lightblue
+                   :position {:lat 42.364876 :lng -71.102352}}
+              104 {:id 104 :title "Mr Orange"    :color :orange
+                   :position {:lat 42.369347 :lng -71.101107}}
+              105 {:id 105 :title "Mr Pink"      :color :pink
+                   :position {:lat 42.365257 :lng -71.087246}}
+              106 {:id 106 :title "Mr Purple"    :color :purple
+                   :position {:lat 42.361198 :lng -71.103983}}
+              107 {:id 107 :title "Mr Red"       :color :red
+                   :position {:lat 42.372083 :lng -71.082062}}
+              108 {:id 108 :title "Mr Yellow"    :color :yellow
+                   :position {:lat 42.366465 :lng -71.095194}}}}))
+
+(def marker-icon-colors
+  "The colors available for map marker (x.png and x-dot.png) icons."
+  (let [colors [:blue :green :red :yellow :orange :pink :purple]
+        dotted (map #(keyword (str (name %) "-dot")) colors)]
+    (reduce conj colors dotted)))
+
+(defn add-guy
+  "A new guy at position LAT and LNG to map with MAP-ID."
+  [map-id position]
+  (let [guy-id (get-next-id)]
+    (get-in
+     (swap! the-maps
+            (fn [state]
+              (let [used (set (map :color (vals (get state map-id))))
+                    color (first (remove used marker-icon-colors))
+                    title (str "Mr " (s/capitalize (name color)))]
+                (update-in state [map-id]
+                           assoc guy-id {:id guy-id
+                                         :title title
+                                         :color color
+                                         :position position}))))
+     [map-id guy-id])))
+
 (defn body-edn
   "The body of REQUEST parsed as EDN."
   [request]
