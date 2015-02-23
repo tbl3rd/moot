@@ -31,6 +31,7 @@
                  :position {:lat 42.372083 :lng -71.082062}}
                 {:id 108 :title "Mr Yellow"    :color :yellow
                  :position {:lat 42.366465 :lng -71.095194}}}
+         :uri "/update/901/"
          :markers {}
          :the-map nil}))
 
@@ -394,7 +395,8 @@
 (defn update-location
   "Update the server with your current location."
   []
-  (http-post "/update" (pr-str (:you @state)) log))
+  (let [state @state]
+    (http-post (:uri state) (pr-str (:you state)) log)))
 
 (defn page
   "Render the page HTML."

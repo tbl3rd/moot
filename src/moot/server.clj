@@ -40,22 +40,30 @@
         dotted (map #(keyword (str (name %) "-dot")) colors)]
     (reduce conj colors dotted)))
 
-(defn add-guy
-  "A new guy at position LAT and LNG to map with MAP-ID."
-  [map-id position]
-  (let [guy-id (get-next-id)]
-    (get-in
-     (swap! the-maps
-            (fn [state]
-              (let [used (set (map :color (vals (get state map-id))))
-                    color (first (remove used marker-icon-colors))
-                    title (str "Mr " (s/capitalize (name color)))]
-                (update-in state [map-id]
-                           assoc guy-id {:id guy-id
-                                         :title title
-                                         :color color
-                                         :position position}))))
-     [map-id guy-id])))
+(defn get-guy-color-for-map
+  [map-id guy-id]
+  (let [state @the-maps]
+    (if-let [result (get-in state [map-id guy-id :color])]
+      result
+      (let [used (set (map :color (vals (get state map-id))))
+            color (first (remove used marker-icon-colors))]
+        (or color (first marker-icon-colors))))))
+
+(defn update-guy
+  "Update guy in map with MAP-ID."
+  [map-id guy]
+  (let [guy-id (or (:id guy) (get-next-id))
+        color (get-guy-color-for-map map-id guy-id)
+        title (or (:title guy) (str "Mr " (s/capitalize (name color))))
+        position (:position guy)
+        new-guy {:id guy-id
+                 :title title
+                 :color color
+                 :position position}]
+    (let [state (swap! the-maps
+                       (fn [state]
+                         (update-in state [map-id] assoc guy-id new-guy)))]
+      (get-in state [map-id guy-id]))))
 
 (defn body-edn
   "The body of REQUEST parsed as EDN."
@@ -71,24 +79,49 @@
   [handler uri msg]
   (fn [request]
     (let [response (handler request)]
-      (if (= uri (s/lower-case (:uri request)))
+      (if (or true (= uri (s/lower-case (:uri request))))
         (println (pr-str {:msg msg :request request :response response})))
       response)))
+
+(comment
+  "A URI looks like this: /update/MAP-ID/ with the user's data in the POST."
+  "Example: /update/909/"
+  "POST" {:id 105 :title "Abe" :position {:lat 42.365257 :lng -71.087246}}
+  "If there is no MAP-ID or if the MAP-ID is not found, make a new map."
+  "Update" the-maps "with the user's new location and name."
+  "If no" :id "entry in user's update info, allocate a color to the user,"
+  "and add the user's information to the map for MAP-ID."
+  "Result is:" {MAP-ID (get-in @the-maps MAP-ID)})
+
+(defmacro try-or-nil
+  "Value of BODY or nil if an exception is thrown."
+  [& body]
+  `(try (do ~@body) (catch Exception e# (println e#))))
+
+(defn map-id-from-uri
+  "Return nil or the map ID parsed from URI."
+  [uri]
+  (let [re #"^/update/(.+)/$"
+        [update map-id] (re-find re (s/lower-case uri))]
+    (println [:map-id-from-uri {:update update :map-id map-id}])
+    (try-or-nil
+      (if (and update map-id)
+       (let [id (edn/read-string map-id)]
+         (if (and id (> id 0)) id))))))
 
 (defn handle-request
   "Return a response for REQUEST."
   [request]
-  (let [method (:request-method request)
-        uri (s/lower-case (:uri request))
-        params (:params request)]
-    (cond (and (= method :post) (= uri "/update"))
-          {:status  200
-           :headers {"content-type" "text/plain"}
-           :body (pr-str (body-edn request))}
-          :else
-          {:status 400
-           :header {"content-type" "text/plain"}
-           :body "Bad request."})))
+  (let [post? (= :post (:request-method request))
+        map-id (map-id-from-uri (:uri request))]
+    (if (and post? map-id)
+      {:status  200
+       :headers {"content-type" "text/plain"}
+       :body (pr-str {:you (update-guy map-id (body-edn request))
+                      :all (set (vals (get @the-maps map-id)))})}
+      {:status 400
+       :header {"content-type" "text/plain"}
+       :body "Bad request."})))
 
 (def moot-app
   "The server callback entry point."
