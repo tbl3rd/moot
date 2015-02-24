@@ -278,7 +278,6 @@
     (.fitBounds the-map bound)
     (doseq [guy guys] (mark-guy the-map guy :drop))
     (swap! state #(update-in % [:the-map] (constantly the-map)))
-    #_(js/alert (pr-str {:the-map (:the-map @state)}))
     result))
 
 (defn goog-icon-img-for
@@ -407,9 +406,23 @@
                   position (constantly {:lat lat :lng lng})
                   state (swap! state update-in [:you :position] position)]
               (http-post (:uri state) (pr-str (:you state)) log)))]
-    (-> js/navigator
-        (.-geolocation)
-        (.getCurrentPosition swapper js/alert))))
+    (-> js/navigator .-geolocation (.getCurrentPosition swapper js/alert))))
+
+(defn call-after
+  "Call f with optional args after ms milliseconds."
+  ([ms f]
+   (js/setTimeout f ms))
+  ([ms f arg & args]
+   (letfn [(newf [] (apply f arg args))]
+     (js/setTimeout newf ms))))
+
+(defn call-periodically
+  "Call f with optional args every ms milliseconds."
+  ([ms f]
+   (js/setInterval f ms))
+  ([ms f arg & args]
+   (letfn [(newf [] (apply f arg args))]
+     (js/setInterval newf ms))))
 
 (defn page
   "Render the page HTML."
@@ -426,6 +439,6 @@
               (render-legend state)
               (new-map-guys (:all state))))
   (show-legend! false)
-  (update-location))
+  (call-periodically (* 10 1000) update-location))
 
 (goog.events/listen js/window "load" #(page @state))
