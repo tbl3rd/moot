@@ -402,8 +402,8 @@
   "Render the page HTML."
   [state]
   (html {}
-        (head {:profile "http://www.w3.org/2005/10/profile"}
-              (link {:rel :icon :type "image/png" :href "favicon.png"})
+        (head {}
+              (link {:rel :icon :type "image/png" :href "moot.png"})
               ((element-for-tag :meta) {:charset :utf-8})
               (title {} "Where is everyone?")
               (style-webkit-refresh-workaround)
