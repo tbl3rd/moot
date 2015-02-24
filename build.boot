@@ -52,6 +52,7 @@
         (reload)
         (cljs-repl)
         (cljs :optimizations :none
+              :output-to "main.js"
               :source-map true
               :unified-mode true)
         (repl :server true)

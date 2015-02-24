@@ -31,6 +31,7 @@
                  :position {:lat 42.372083 :lng -71.082062}}
                 {:id 108 :title "Mr Yellow"    :color :yellow
                  :position {:lat 42.366465 :lng -71.095194}}}
+         :map-id 901
          :uri "/update/901/"
          :markers {}
          :the-map nil}))
@@ -38,12 +39,16 @@
 (defn my-name-is!
   "Update your name everywhere it matters."
   [name]
-  (let [id (get-in @state [:you :id])]
-    (swap! state
-           (fn [state]
-             (let [state (update-in state [:you :title] (constantly name))]
-               (update-in state [:all] conj (:you state)))))
-    (.setTitle (get-in @state [:markers id]) name)))
+  (let [id (get-in @state [:you :id])
+        namer (constantly name)
+        swapper (fn [state]
+                  (let [you (:you state)]
+                    (-> state
+                        (update-in [:you :title] namer)
+                        (update-in [:all] conj you))))
+        state (swap! state swapper)]
+    (.setItem js/localStorage (str (:map-id state)) name)
+    (.setTitle (get-in state [:markers id]) name)))
 
 (defn marker-visible?
   "True if marker for id is visible.  False otherwise."
@@ -395,8 +400,16 @@
 (defn update-location
   "Update the server with your current location."
   []
-  (let [state @state]
-    (http-post (:uri state) (pr-str (:you state)) log)))
+  (letfn [(swapper [position]
+            (let [coords (.-coords position)
+                  lat (.-latitude coords)
+                  lng (.-longitude coords)
+                  position {:lat lat :lng lng}
+                  state (swap! state update-in [:you :position] position)]
+              (http-post (:uri state) (pr-str (:you state)) log)))]
+    (-> js/navigator
+        (.-geolocation)
+        (.getCurrentPosition swapper js/alert))))
 
 (defn page
   "Render the page HTML."

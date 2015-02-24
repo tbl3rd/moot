@@ -79,7 +79,7 @@
   [handler uri msg]
   (fn [request]
     (let [response (handler request)]
-      (if (or true (= uri (s/lower-case (:uri request))))
+      (if (.startsWith (:uri request) uri)
         (println (pr-str {:msg msg :request request :response response})))
       response)))
 
@@ -103,7 +103,6 @@
   [uri]
   (let [re #"^/update/(.+)/$"
         [update map-id] (re-find re (s/lower-case uri))]
-    (println [:map-id-from-uri {:update update :map-id map-id}])
     (try-or-nil
       (if (and update map-id)
        (let [id (edn/read-string map-id)]
@@ -126,10 +125,10 @@
 (def moot-app
   "The server callback entry point."
   (-> handle-request
-      (wrap-dump-uri "/update" :first)
+      (wrap-dump-uri "/update/" :first)
       wrap-params
       (wrap-file "target" {:index-files? true})
       wrap-file-info                    ; works!
-      (wrap-dump-uri "/update" :last)))
+      (wrap-dump-uri "/update/" :last)))
 
 (println [:RELOADED 'server])
