@@ -17,9 +17,9 @@
 (set-env!
  :source-paths   #{"src"}
  :resource-paths #{"www"}
- :dependencies '[[adzerk/boot-cljs "0.0-2411-3"]
-                 [adzerk/boot-cljs-repl "0.1.7"]
-                 [adzerk/boot-reload "0.2.0"]
+ :dependencies '[[adzerk/boot-cljs "0.0-2814-1"]
+                 [adzerk/boot-cljs-repl "0.1.9"]
+                 [adzerk/boot-reload "0.2.4"]
                  [pandeiro/boot-http "0.6.3-SNAPSHOT"]
                  [ring "1.3.2"]
                  [tailrecursion/boot.core "2.5.1"]])
@@ -47,7 +47,7 @@
   "Debug the moot client and server."
   []
   (comp (http/serve :handler 'moot.server/moot-app :reload true)
-        (watch)
+        (watch :verbose true)
         (speak)
         (reload)
         (cljs-repl)
