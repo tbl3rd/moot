@@ -46,17 +46,16 @@
 (deftask debug
   "Debug the moot client and server."
   []
-  (comp (http/serve :handler 'moot.server/moot-app :reload true)
-        (watch :verbose true)
-        (speak)
-        (reload)
-        (cljs-repl)
-        (cljs :optimizations :none
-              :output-to "main.js"
-              :source-map true
-              :unified-mode true)
-        (repl :server true)
-        (wait)))
+  (comp
+   (http/serve :handler 'moot.server/moot-app :reload true)
+   (watch :verbose true)
+   (cljs-repl)
+   (speak)
+   (cljs :optimizations :none
+         :output-to "main.js"
+         :source-map true
+         :unified-mode true)
+   (reload)))
 
 (deftask oops
   "Say Oops"

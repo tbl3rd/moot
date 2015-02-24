@@ -404,9 +404,8 @@
             (let [coords (.-coords position)
                   lat (.-latitude coords)
                   lng (.-longitude coords)
-                  position {:lat lat :lng lng}
+                  position (constantly {:lat lat :lng lng})
                   state (swap! state update-in [:you :position] position)]
-              (log [:update-location :position position])
               (http-post (:uri state) (pr-str (:you state)) log)))]
     (-> js/navigator
         (.-geolocation)
