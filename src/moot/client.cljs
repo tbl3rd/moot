@@ -245,15 +245,12 @@
 
 (defn mark-guy
   "Drop a marker for guy on map with optional animation."
-  [map guy & animate]
-  (letfn [(make [m]
-            (google.maps.Marker.
-             (clj->js (assoc guy
-                             :map map
-                             :icon (goog-map-micon (:color guy))
-                             :visible (if m (.getVisible m) true)))))]
-    (swap! state #(update-in % [:markers (:id guy)] make))
-    (animate-marker! (:id guy) :drop)))
+  [map guy]
+  (google.maps.Marker.
+   (clj->js (assoc guy
+                   :map map
+                   :icon (goog-map-micon (:color guy))
+                   :visible true))))
 
 (defn show-all-guys
   "Adjust the map so that all the markers are on it."
@@ -275,8 +272,12 @@
         result (or (element-by-id :the-map) (div {:id :the-map}))
         the-map (new-goog-map result options)]
     (.fitBounds the-map bound)
-    (doseq [guy guys] (mark-guy the-map guy :drop))
-    (swap! state #(update-in % [:the-map] (constantly the-map)))
+    (let [markers
+          (reduce conj {}
+                  (for [g guys] [(:id g) (mark-guy the-map g)]))]
+      (swap! state #(-> %
+                        (assoc :markers markers)
+                        (assoc :the-map the-map))))
     result))
 
 (defn goog-icon-img-for
@@ -395,35 +396,32 @@
     (.send connection uri "POST" request
            (clj->js {"Content-type" "text/plain"}))))
 
-(comment
-  (defn update-markers
-    []
-    (let [old (:markers @state)
-          the-map (:the-map @state)]
-      (swap! state
-             (fn [state]
-               (update-in state [:markers]
-                          (reduce {} (get-in)))))
-      (doseq [[id mark] (:markers old)] (.setMap mark nil))
-      )))
+(defn update-markers
+  "Update markers according to response."
+  [response]
+  (let [old @state
+        the-map (:the-map old)
+        markers (:markers old)
+        cleanup (fn [] (doseq [[id m] markers] (.setMap m nil)))]
+    (swap! state
+           #(assoc response
+                   :the-map the-map
+                   :markers (into {}
+                                  (for [g (:all %)]
+                                    [(:id g) (mark-guy the-map g)]))))
+    (js/setTimeout cleanup 10)))
 
 (defn update-position
   "Update the server with your current position."
   []
-  (letfn [(updater [response]
-            (let [old @state]
-              (log (reset! state
-                           (assoc response
-                                  :markers (:markers old)
-                                  :the-map (:the-map old))))))
-          (swapper [position]
+  (letfn [(swapper [position]
             (let [coords (.-coords position)
                   lat (.-latitude coords)
                   lng (.-longitude coords)
                   position (constantly {:lat lat :lng lng})
                   state (swap! state update-in [:you :position] position)]
               (http-post (str "/update/" (:map-id state) "/")
-                         (pr-str (:you state)) updater)))]
+                         (pr-str (:you state)) update-markers)))]
     (-> js/navigator .-geolocation (.getCurrentPosition swapper js/alert))))
 
 (defn call-periodically-when-visible
