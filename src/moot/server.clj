@@ -117,7 +117,8 @@
       {:status  200
        :headers {"content-type" "text/plain"}
        :body (pr-str {:you (update-guy map-id (body-edn request))
-                      :all (set (vals (get @the-maps map-id)))})}
+                      :all (set (vals (get @the-maps map-id)))
+                      :map-id map-id})}
       {:status 400
        :header {"content-type" "text/plain"}
        :body "Bad request."})))

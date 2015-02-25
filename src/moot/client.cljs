@@ -32,7 +32,6 @@
                 {:id 108 :title "Mr Yellow"    :color :yellow
                  :position {:lat 42.366465 :lng -71.095194}}}
          :map-id 901
-         :uri "/update/901/"
          :markers {}
          :the-map nil}))
 
@@ -396,30 +395,48 @@
     (.send connection uri "POST" request
            (clj->js {"Content-type" "text/plain"}))))
 
-(defn update-location
-  "Update the server with your current location."
+(comment
+  (defn update-markers
+    []
+    (let [old (:markers @state)
+          the-map (:the-map @state)]
+      (swap! state
+             (fn [state]
+               (update-in state [:markers]
+                          (reduce {} (get-in)))))
+      (doseq [[id mark] (:markers old)] (.setMap mark nil))
+      )))
+
+(defn update-position
+  "Update the server with your current position."
   []
-  (letfn [(swapper [position]
+  (letfn [(updater [response]
+            (let [old @state]
+              (log (reset! state
+                           (assoc response
+                                  :markers (:markers old)
+                                  :the-map (:the-map old))))))
+          (swapper [position]
             (let [coords (.-coords position)
                   lat (.-latitude coords)
                   lng (.-longitude coords)
                   position (constantly {:lat lat :lng lng})
                   state (swap! state update-in [:you :position] position)]
-              (http-post (:uri state) (pr-str (:you state)) log)))]
+              (http-post (str "/update/" (:map-id state) "/")
+                         (pr-str (:you state)) updater)))]
     (-> js/navigator .-geolocation (.getCurrentPosition swapper js/alert))))
 
 (defn call-periodically-when-visible
+  "Call f with args every ms milliseconds when document is visible."
   ([ms f]
-   (letfn [(watch [f] (goog.events/listenOnce js/document "visibilitychange" f))
-           (call [id]
-             (if (.-hidden js/document)
-               (do 
-                 (if id (js/clearInterval id))
-                 (watch #(call nil)))
-               (let [id (js/setInterval f ms)]
-                 (watch #(call id)))))]
+   (letfn [(call [id]
+             (let [id (if (.-hidden js/document)
+                        (and id (js/clearInterval id) nil)
+                        (js/setInterval f ms))]
+               (goog.events/listenOnce
+                js/document "visibilitychange" #(call id))))]
      (call nil)))
-  ([ms f & x args]
+  ([ms f x & args]
    (call-periodically-when-visible (fn [] (apply f x args)) ms)))
 
 (defn page
@@ -437,6 +454,6 @@
               (render-legend state)
               (new-map-guys (:all state))))
   (show-legend! false)
-  (call-periodically-when-visible (* 10 1000) update-location))
+  (call-periodically-when-visible (* 5 1000) update-position))
 
 (goog.events/listenOnce js/window "load" #(page @state))
