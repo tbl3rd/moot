@@ -408,31 +408,16 @@
               (http-post (:uri state) (pr-str (:you state)) log)))]
     (-> js/navigator .-geolocation (.getCurrentPosition swapper js/alert))))
 
-(defn call-after
-  "Call f with optional args after ms milliseconds."
-  ([ms f]
-   (js/setTimeout f ms))
-  ([ms f x & args]
-   (call-after (fn [] (apply f x args)) ms)))
-
-(defn call-periodically
-  "Call f with optional args every ms milliseconds."
-  ([ms f]
-   (js/setInterval f ms))
-  ([ms f x & args]
-   (call-periodically (fn [] (apply f x args)) ms)))
-
 (defn call-periodically-when-visible
   ([ms f]
-   (letfn [(seen [] (or (.-hidden js/document) (f)))
-           (event [f] (goog.events/listenOnce js/document "visibilitychange" f))
+   (letfn [(watch [f] (goog.events/listenOnce js/document "visibilitychange" f))
            (call [id]
-             (log [:call-periodically-when-visible :id id :hidden (.-hidden js/document)])
-             (if (and id (.-hidden js/document))
-               (do (js/clearInterval id)
-                   (event #(call nil)))
-               (let [id (js/setInterval seen ms)]
-                 (event #(call id)))))]
+             (if (.-hidden js/document)
+               (do 
+                 (if id (js/clearInterval id))
+                 (watch #(call nil)))
+               (let [id (js/setInterval f ms)]
+                 (watch #(call id)))))]
      (call nil)))
   ([ms f & x args]
    (call-periodically-when-visible (fn [] (apply f x args)) ms)))
