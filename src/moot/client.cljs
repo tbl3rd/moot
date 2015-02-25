@@ -424,11 +424,18 @@
 
 (defn call-periodically-when-visible
   ([ms f]
-   (js/setInterval
-    (fn [] (or (.-hidden js/document) (f))) ms))
+   (letfn [(seen [] (or (.-hidden js/document) (f)))
+           (event [f] (goog.events/listenOnce js/document "visibilitychange" f))
+           (call [id]
+             (log [:call-periodically-when-visible :id id :hidden (.-hidden js/document)])
+             (if (and id (.-hidden js/document))
+               (do (js/clearInterval id)
+                   (event #(call nil)))
+               (let [id (js/setInterval seen ms)]
+                 (event #(call id)))))]
+     (call nil)))
   ([ms f & x args]
-   (call-periodically-when-visible
-    (fn [] (apply f x args)) ms)))
+   (call-periodically-when-visible (fn [] (apply f x args)) ms)))
 
 (defn page
   "Render the page HTML."
@@ -447,4 +454,4 @@
   (show-legend! false)
   (call-periodically-when-visible (* 10 1000) update-location))
 
-(goog.events/listen js/window "load" #(page @state))
+(goog.events/listenOnce js/window "load" #(page @state))
