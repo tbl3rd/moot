@@ -412,17 +412,23 @@
   "Call f with optional args after ms milliseconds."
   ([ms f]
    (js/setTimeout f ms))
-  ([ms f arg & args]
-   (letfn [(newf [] (apply f arg args))]
-     (js/setTimeout newf ms))))
+  ([ms f x & args]
+   (call-after (fn [] (apply f x args)) ms)))
 
 (defn call-periodically
   "Call f with optional args every ms milliseconds."
   ([ms f]
    (js/setInterval f ms))
-  ([ms f arg & args]
-   (letfn [(newf [] (apply f arg args))]
-     (js/setInterval newf ms))))
+  ([ms f x & args]
+   (call-periodically (fn [] (apply f x args)) ms)))
+
+(defn call-periodically-when-visible
+  ([ms f]
+   (js/setInterval
+    (fn [] (or (.-hidden js/document) (f))) ms))
+  ([ms f & x args]
+   (call-periodically-when-visible
+    (fn [] (apply f x args)) ms)))
 
 (defn page
   "Render the page HTML."
@@ -439,6 +445,6 @@
               (render-legend state)
               (new-map-guys (:all state))))
   (show-legend! false)
-  (call-periodically (* 10 1000) update-location))
+  (call-periodically-when-visible (* 10 1000) update-location))
 
 (goog.events/listen js/window "load" #(page @state))
