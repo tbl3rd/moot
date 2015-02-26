@@ -3,7 +3,7 @@
   (:require [clojure.string :as s]
             [clojure.tools.reader.edn :as edn]
             [ring.middleware.content-type :refer [wrap-content-type]]
-            [ring.middleware.cookies-type :refer [wrap-cookies]]
+            [ring.middleware.cookies :refer [wrap-cookies]]
             [ring.middleware.file :refer [wrap-file]]
             [ring.middleware.file-info :refer [wrap-file-info]]
             [ring.middleware.not-modified :refer [wrap-not-modified]]
@@ -112,25 +112,21 @@
 (defn handle-request
   "Return a response for REQUEST."
   [request]
-  (let [fail {:status 400
-              :header {"content-type" "text/plain"}
-              :body "Bad map request."}
+  (let [response {:headers {"content-type" "text/plain"}}
+        fail (assoc response :status 400 :body "Bad map request.")
         post? (= :post (:request-method request))
-        map-id (map-id-from-uri (:uri request))]
+        map-id (map-id-from-uri (:uri request))
+        succeed (assoc response :status 400)
+        body (fn [] {:map-id map-id
+                     :all (set (vals (get @the-maps map-id)))})]
     (cond (and post? map-id)
-          {:status  200
-           :headers {"content-type" "text/plain"}
-           :body (pr-str {:you (update-guy map-id (body-edn request))
-                          :all (set (vals (get @the-maps map-id)))
-                          :map-id map-id})}
+          (let [you (update-guy map-id (body-edn request))]
+            (doto (assoc succeed :body (pr-str (assoc (body) :you you))) println))
           map-id
           (if-let [cv (get-in request [:cookies :value])]
-            (let [you (select-keys cv [:id :title :color])]
-              {:status  200
-               :headers {"content-type" "text/plain"}
-               :body (pr-str {:you (update-guy map-id you)
-                              :all (set (vals (get @the-maps map-id)))
-                              :map-id map-id})})
+            (let [you (select-keys cv [:id :title :color])
+                  you (update-guy map-id you)]
+              (assoc succeed :body (pr-str (assoc (body) :you you))))
             fail)
           :else fail)))
 

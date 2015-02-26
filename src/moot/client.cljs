@@ -399,6 +399,7 @@
 (defn update-markers
   "Update markers according to response."
   [response]
+  (log [:update-markers response])
   (let [old @state
         the-map (:the-map old)
         markers (:markers old)
