@@ -419,9 +419,9 @@
                   lat (.-latitude coords)
                   lng (.-longitude coords)
                   position (constantly {:lat lat :lng lng})
-                  state (swap! state update-in [:you :position] position)]
-              (http-post (str "/update/" (:map-id state) "/")
-                         (pr-str (:you state)) update-markers)))]
+                  state (swap! state update-in [:you :position] position)
+                  uri (if-let [id (:map-id state)] (str "/update/" id "/") "/")]
+              (http-post uri (pr-str (:you state)) update-markers)))]
     (-> js/navigator .-geolocation (.getCurrentPosition swapper js/alert))))
 
 (defn call-periodically-when-visible

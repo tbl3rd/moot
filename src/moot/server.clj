@@ -3,6 +3,7 @@
   (:require [clojure.string :as s]
             [clojure.tools.reader.edn :as edn]
             [ring.middleware.content-type :refer [wrap-content-type]]
+            [ring.middleware.cookies-type :refer [wrap-cookies]]
             [ring.middleware.file :refer [wrap-file]]
             [ring.middleware.file-info :refer [wrap-file-info]]
             [ring.middleware.not-modified :refer [wrap-not-modified]]
@@ -104,29 +105,40 @@
   (let [re #"^/update/(.+)/$"
         [update map-id] (re-find re (s/lower-case uri))]
     (try-or-nil
-      (if (and update map-id)
+     (if (and update map-id)
        (let [id (edn/read-string map-id)]
          (if (and id (> id 0)) id))))))
 
 (defn handle-request
   "Return a response for REQUEST."
   [request]
-  (let [post? (= :post (:request-method request))
+  (let [fail {:status 400
+              :header {"content-type" "text/plain"}
+              :body "Bad map request."}
+        post? (= :post (:request-method request))
         map-id (map-id-from-uri (:uri request))]
-    (if (and post? map-id)
-      {:status  200
-       :headers {"content-type" "text/plain"}
-       :body (pr-str {:you (update-guy map-id (body-edn request))
-                      :all (set (vals (get @the-maps map-id)))
-                      :map-id map-id})}
-      {:status 400
-       :header {"content-type" "text/plain"}
-       :body "Bad request."})))
+    (cond (and post? map-id)
+          {:status  200
+           :headers {"content-type" "text/plain"}
+           :body (pr-str {:you (update-guy map-id (body-edn request))
+                          :all (set (vals (get @the-maps map-id)))
+                          :map-id map-id})}
+          map-id
+          (if-let [cv (get-in request [:cookies :value])]
+            (let [you (select-keys cv [:id :title :color])]
+              {:status  200
+               :headers {"content-type" "text/plain"}
+               :body (pr-str {:you (update-guy map-id you)
+                              :all (set (vals (get @the-maps map-id)))
+                              :map-id map-id})})
+            fail)
+          :else fail)))
 
 (def moot-app
   "The server callback entry point."
   (-> handle-request
       (wrap-dump-uri "/update/" :first)
+      wrap-cookies
       wrap-params
       (wrap-file "target" {:index-files? true})
       wrap-file-info                    ; works!
