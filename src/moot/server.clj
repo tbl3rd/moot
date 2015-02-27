@@ -128,20 +128,30 @@
 (defn handle-request
   "Return a response for REQUEST."
   [request]
-  (let [fail {:status 400 :body "Bad map request."}
+  (let [week (* 7 24 60 60)
+        fail {:status 400 :body "Bad map request."}
         post? (= :post (:request-method request))
-        map-id (map-id-from-uri (:uri request))
+        uri (:uri request)
+        map-id (map-id-from-uri uri)
         succeed {:status 200}
         body (fn [] {:map-id map-id
                      :all (set (vals (get @the-maps map-id)))})]
     (cond (and post? map-id)
           (let [you (update-guy map-id (edn/read-string (:body request)))]
-            (assoc succeed :body (pr-str (assoc (body) :you you))))
+            (assoc succeed
+                   :cookies {(str map-id)
+                             {:value (select-keys you [:id :title :color])
+                              :max-age week :path uri}}
+                   :body (pr-str (assoc (body) :you you))))
           map-id
           (if-let [cv (get-in request [:cookies :value])]
             (let [you (select-keys cv [:id :title :color])
                   you (update-guy map-id you)]
-              (assoc succeed :body (pr-str (assoc (body) :you you))))
+              (assoc succeed
+                     :cookies {(str map-id)
+                               {:value (select-keys you [:id :title :color])
+                                :max-age week :path uri}}
+                     :body (pr-str (assoc (body) :you you))))
             fail)
           :else fail)))
 

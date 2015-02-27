@@ -400,17 +400,18 @@
   "Update markers according to response."
   [response]
   (log [:update-markers response])
-  (let [old @state
-        the-map (:the-map old)
-        markers (:markers old)
-        cleanup (fn [] (doseq [[id m] markers] (.setMap m nil)))]
-    (swap! state
-           #(assoc response
-                   :the-map the-map
-                   :markers (into {}
-                                  (for [g (:all %)]
-                                    [(:id g) (mark-guy the-map g)]))))
-    (js/setTimeout cleanup 10)))
+  (when response
+    (let [old @state
+         the-map (:the-map old)
+         markers (:markers old)
+         cleanup (fn [] (doseq [[id m] markers] (.setMap m nil)))]
+     (swap! state
+            #(assoc response
+                    :the-map the-map
+                    :markers (into {}
+                                   (for [g (:all %)]
+                                     [(:id g) (mark-guy the-map g)]))))
+     (js/setTimeout cleanup 10))))
 
 (defn update-position
   "Update the server with your current position."
