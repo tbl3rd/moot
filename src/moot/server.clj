@@ -10,7 +10,8 @@
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.reload :refer [wrap-reload]]
             [ring.middleware.resource :refer [wrap-resource]]
-            [ring.util.response]
+            [ring.util.mime-type :as mime-type]
+            [ring.util.response :as response]
             [tailrecursion.boot.core :as boot]))
 
 (def the-next-id (atom 0))
@@ -66,22 +67,37 @@
                          (update-in state [map-id] assoc guy-id new-guy)))]
       (get-in state [map-id guy-id]))))
 
-(defn body-edn
-  "The body of REQUEST parsed as EDN."
-  [request]
-  (edn/read-string
-   (slurp
-    (java.io.PushbackReader.
-     (java.io.InputStreamReader.
-      (:body request))))))
-
-(defn wrap-dump-uri
-  "If REQUEST is for URI dump the request and response tagged with MSG."
-  [handler uri msg]
+(defn wrap-index-html-response
+  "Establish content-type when request is implicitly for index.html."
+  [handler]
   (fn [request]
     (let [response (handler request)]
-      (if (.startsWith (:uri request) uri)
-        (println (pr-str {:msg msg :request request :response response})))
+      (if (= "/" (:uri request))
+        (response/content-type response "text/html")
+        response))))
+
+(defn wrap-request-body-edn
+  "Replace :body #HttpInput with a readable string of EDN."
+  [handler]
+  (fn [request]
+    (if (= "application/edn" (get-in request [:headers "content-type"]))
+      (response/content-type
+       (handler (assoc request
+                       :body (-> request
+                                 :body
+                                 java.io.InputStreamReader.
+                                 java.io.PushbackReader.
+                                 slurp)))
+       "application/edn")
+      (handler request))))
+
+(defn wrap-dump-request-response
+  "Dump request and response maps."
+  [handler]
+  (fn [request]
+    (println (pr-str [:request request]))
+    (let [response (handler request)]
+      (println (pr-str [:response response]))
       response)))
 
 (comment
@@ -112,16 +128,15 @@
 (defn handle-request
   "Return a response for REQUEST."
   [request]
-  (let [response {:headers {"content-type" "text/plain"}}
-        fail (assoc response :status 400 :body "Bad map request.")
+  (let [fail {:status 400 :body "Bad map request."}
         post? (= :post (:request-method request))
         map-id (map-id-from-uri (:uri request))
-        succeed (assoc response :status 400)
+        succeed {:status 200}
         body (fn [] {:map-id map-id
                      :all (set (vals (get @the-maps map-id)))})]
     (cond (and post? map-id)
-          (let [you (update-guy map-id (body-edn request))]
-            (doto (assoc succeed :body (pr-str (assoc (body) :you you))) println))
+          (let [you (update-guy map-id (edn/read-string (:body request)))]
+            (assoc succeed :body (pr-str (assoc (body) :you you))))
           map-id
           (if-let [cv (get-in request [:cookies :value])]
             (let [you (select-keys cv [:id :title :color])
@@ -133,11 +148,13 @@
 (def moot-app
   "The server callback entry point."
   (-> handle-request
-      (wrap-dump-uri "/update/" :first)
-      wrap-cookies
-      wrap-params
       (wrap-file "target" {:index-files? true})
-      wrap-file-info                    ; works!
-      (wrap-dump-uri "/update/" :last)))
+      wrap-dump-request-response
+      wrap-index-html-response
+      wrap-request-body-edn
+      wrap-content-type
+      wrap-not-modified
+      wrap-params
+      wrap-cookies))
 
 (println [:RELOADED 'server])

@@ -51,11 +51,11 @@
    (watch :verbose true)
    (cljs-repl)
    (speak)
+   (reload)
    (cljs :optimizations :none
          :output-to "main.js"
          :source-map true
-         :unified-mode true)
-   (reload)))
+         :unified-mode true)))
 
 (deftask oops
   "Say Oops"

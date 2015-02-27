@@ -394,7 +394,7 @@
                           (reader/read-string
                            (.getResponseText connection))))
     (.send connection uri "POST" request
-           (clj->js {"Content-type" "text/plain"}))))
+           (clj->js {:content-type "application/edn"}))))
 
 (defn update-markers
   "Update markers according to response."
