@@ -399,7 +399,6 @@
 (defn update-markers
   "Update markers according to response."
   [response]
-  (log [:update-markers response])
   (when response
     (let [old @state
          the-map (:the-map old)
@@ -417,14 +416,16 @@
   "Update the server with your current position."
   []
   (letfn [(swapper [position]
-            (let [coords (.-coords position)
-                  lat (.-latitude coords)
-                  lng (.-longitude coords)
+            (let [uri (str "/update/" (or (:map-id state) 0) "/")
+                  coords (.-coords position)
+                  lat (.-latitude coords) lng (.-longitude coords)
                   position (constantly {:lat lat :lng lng})
-                  state (swap! state update-in [:you :position] position)
-                  uri (if-let [id (:map-id state)] (str "/update/" id "/") "/")]
+                  state (swap! state update-in [:you :position] position)]
               (http-post uri (pr-str (:you state)) update-markers)))]
-    (-> js/navigator .-geolocation (.getCurrentPosition swapper js/alert))))
+    (try (-> js/navigator
+             .-geolocation
+             (.getCurrentPosition swapper js/alert))
+         (catch js/Error e (.log js/console e)))))
 
 (defn call-periodically-when-visible
   "Call f with args every ms milliseconds when document is visible."
@@ -457,3 +458,5 @@
   (call-periodically-when-visible (* 5 1000) update-position))
 
 (goog.events/listenOnce js/window "load" #(page @state))
+
+(println [:RELOADED 'client])

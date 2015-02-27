@@ -51,7 +51,7 @@
             color (first (remove used marker-icon-colors))]
         (or color (first marker-icon-colors))))))
 
-(defn update-guy
+(defn update-map-guy
   "Update guy in map with MAP-ID."
   [map-id guy]
   (let [guy-id (or (:id guy) (get-next-id))
@@ -116,44 +116,41 @@
   `(try (do ~@body) (catch Exception e# (println e#))))
 
 (defn map-id-from-uri
-  "Return nil or the map ID parsed from URI."
+  "Return the map ID parsed from URI or a new map ID."
   [uri]
   (let [re #"^/update/(.+)/$"
         [update map-id] (re-find re (s/lower-case uri))]
-    (try-or-nil
-     (if (and update map-id)
-       (let [id (edn/read-string map-id)]
-         (if (and id (> id 0)) id))))))
+    (or (try-or-nil
+         (if (and update map-id)
+           (let [id (edn/read-string map-id)]
+             (if (and id (> id 0)) id))))
+        (get-next-id))))
 
 (defn handle-request
   "Return a response for REQUEST."
   [request]
-  (let [week (* 7 24 60 60)
-        fail {:status 400 :body "Bad map request."}
-        post? (= :post (:request-method request))
+  (let [fail {:status 400 :body "Bad map request."}
         uri (:uri request)
-        map-id (map-id-from-uri uri)
-        succeed {:status 200}
-        body (fn [] {:map-id map-id
-                     :all (set (vals (get @the-maps map-id)))})]
-    (cond (and post? map-id)
-          (let [you (update-guy map-id (edn/read-string (:body request)))]
-            (assoc succeed
-                   :cookies {(str map-id)
-                             {:value (select-keys you [:id :title :color])
-                              :max-age week :path uri}}
-                   :body (pr-str (assoc (body) :you you))))
-          map-id
-          (if-let [cv (get-in request [:cookies :value])]
-            (let [you (select-keys cv [:id :title :color])
-                  you (update-guy map-id you)]
-              (assoc succeed
-                     :cookies {(str map-id)
-                               {:value (select-keys you [:id :title :color])
-                                :max-age week :path uri}}
-                     :body (pr-str (assoc (body) :you you))))
-            fail)
-          :else fail)))
+        map-id (map-id-from-uri uri)]
+    (letfn [(succeed [map-id you]
+              (let [week (* 7 24 60 60)
+                    value (select-keys you [:id :title :color])
+                    all (set (vals (get @the-maps map-id)))]
+                {:status 200
+                 :cookies {(str map-id)
+                           {:max-age week :path uri :value value}}
+                 :body (pr-str {:map-id map-id :you you :all all})}))]
+      (cond (and map-id (= :post (:request-method request)))
+            (let [guy (edn/read-string (:body request))
+                  you (update-map-guy map-id guy)]
+              (succeed map-id you))
+            map-id
+            (if-let [cv (get-in request [:cookies :value])]
+              (let [you (select-keys cv [:id :title :color])
+                    you (update-map-guy map-id you)]
+                (succeed map-id you))
+              fail)
+            :else fail))))
 
 (def moot-app
   "The server callback entry point."
