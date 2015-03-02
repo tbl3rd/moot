@@ -416,11 +416,11 @@
   "Update the server with your current position."
   []
   (letfn [(swapper [position]
-            (let [uri (str "/update/" (or (:map-id state) 0) "/")
-                  coords (.-coords position)
+            (let [coords (.-coords position)
                   lat (.-latitude coords) lng (.-longitude coords)
                   position (constantly {:lat lat :lng lng})
-                  state (swap! state update-in [:you :position] position)]
+                  state (swap! state update-in [:you :position] position)
+                  uri (str "/update/" (or (:map-id state) 0) "/")]
               (http-post uri (pr-str (:you state)) update-markers)))]
     (try (-> js/navigator
              .-geolocation
