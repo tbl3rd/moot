@@ -37,7 +37,7 @@
                    :position {:lat 42.366465 :lng -71.095194}}}}))
 
 (def marker-icon-colors
-  "The colors available for map marker (x.png and x-dot.png) icons."
+  "The colors X available for map marker (x.png and x-dot.png) icons."
   (let [colors [:blue :green :red :yellow :orange :pink :purple]
         dotted (map #(keyword (str (name %) "-dot")) colors)]
     (reduce conj colors dotted)))
@@ -95,10 +95,11 @@
   "Dump request and response maps."
   [handler]
   (fn [request]
-    (println (pr-str [:request request]))
-    (let [response (handler request)]
-      (println (pr-str [:response response]))
-      response)))
+    (let [update? (.startsWith (:uri request) "/update/")]
+      (if update? (println (pr-str [:request request])))
+      (let [response (handler request)]
+        (if update? (println (pr-str [:response response])))
+        response))))
 
 (comment
   "A URI looks like this: /update/MAP-ID/ with the user's data in the POST."
@@ -110,35 +111,34 @@
   "and add the user's information to the map for MAP-ID."
   "Result is:" {MAP-ID (get-in @the-maps MAP-ID)})
 
-(defmacro try-or-nil
-  "Value of BODY or nil if an exception is thrown."
+(defmacro do-or-nil
+  "Value of BODY or nil if BODY throws."
   [& body]
-  `(try (do ~@body) (catch Exception e# (println e#))))
+  `(try (do ~@body) (catch Exception x# (println x#))))
 
 (defn map-id-from-uri
-  "Return the map ID parsed from URI or a new map ID."
+  "Return nil or the map ID parsed from and /update/ URI."
   [uri]
   (let [re #"^/update/(.+)/$"
         [update map-id] (re-find re (s/lower-case uri))]
-    (or (try-or-nil
-         (if (and update map-id)
-           (let [id (edn/read-string map-id)]
-             (if (and id (> id 0)) id))))
-        (get-next-id))))
+    (do-or-nil
+     (if (and update map-id)
+       (let [id (edn/read-string map-id)]
+         (if (and id (> id 0)) id))))))
 
 (defn handle-request
   "Return a response for REQUEST."
   [request]
   (let [fail {:status 400 :body "Bad map request."}
         uri (:uri request)
-        map-id (map-id-from-uri uri)]
+        map-id (or (map-id-from-uri uri) (get-next-id))]
     (letfn [(succeed [map-id you]
               (let [week (* 7 24 60 60)
                     value (select-keys you [:id :title :color])
                     all (set (vals (get @the-maps map-id)))]
                 {:status 200
                  :cookies {(str map-id)
-                           {:max-age week :path uri :value value}}
+                           {:max-age 0 :path uri :value value}}
                  :body (pr-str {:map-id map-id :you you :all all})}))]
       (cond (and map-id (= :post (:request-method request)))
             (let [guy (edn/read-string (:body request))
@@ -151,6 +151,16 @@
                 (succeed map-id you))
               fail)
             :else fail))))
+
+[:response
+ {:cookies
+  {"13"
+   {:path "/update/0/",
+    :value {:color :blue, :title "Mr Pink", :id 105},
+    :max-age 0}},
+  :status 200,
+  :body
+  "{:map-id 13, :you {:id 105, :title \"Mr Pink\", :color :blue, :position {:lat 42.3665582, :lng -71.0912586}}, :all #{{:id 105, :title \"Mr Pink\", :color :blue, :position {:lat 42.3665582, :lng -71.0912586}}}}"}]
 
 (def moot-app
   "The server callback entry point."
