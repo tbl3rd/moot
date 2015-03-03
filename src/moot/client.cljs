@@ -56,11 +56,11 @@
     (.getVisible marker)
     true))
 
-(defn toggle-visible!
-  "Toggle visibility of marker with id."
-  [id]
+(defn set-visible!
+  "Set visibility of marker with id to visible?."
+  [id visible?]
   (if-let [marker (get-in @state [:markers id])]
-    (.setVisible marker (not (.getVisible marker)))))
+    (.setVisible marker visible?)))
 
 (def marker-icon-colors
   "The colors available for map marker (x.png and x-dot.png) icons."
@@ -244,13 +244,13 @@
              :drop   google.maps.Animation.DROP} how how)))))
 
 (defn mark-guy
-  "Drop a marker for guy on map with optional animation."
-  [map guy]
+  "Drop a marker for guy on map and show it when visible?."
+  [map guy visible?]
   (google.maps.Marker.
    (clj->js (assoc guy
                    :map map
                    :icon (goog-map-micon (:color guy))
-                   :visible true))))
+                   :visible visible?))))
 
 (defn show-all-guys
   "Adjust the map so that all the markers are on it."
@@ -274,7 +274,7 @@
     (.fitBounds the-map bound)
     (let [markers
           (reduce conj {}
-                  (for [g guys] [(:id g) (mark-guy the-map g)]))]
+                  (for [g guys] [(:id g) (mark-guy the-map g true)]))]
       (swap! state #(-> %
                         (assoc :markers markers)
                         (assoc :the-map the-map))))
@@ -296,8 +296,9 @@
         you? (= (get-in @state [:you :id]) id)]
     (div {:id title :class :guy}
          (span {}
-               (doto (input {:type :checkbox :checked (marker-visible? id)})
-                 (goog.events/listen "click" #(toggle-visible! id)))
+               (let [visible? (marker-visible? id)]
+                 (doto (input {:type :checkbox :checked visible?})
+                   (goog.events/listen "click" #(set-visible! id (not visible?)))))
                (goog-icon-img-for guy)
                (if you?
                  (let [text (input {:type :text :value title})]
@@ -352,7 +353,7 @@
     result))
 
 (defn style-webkit-refresh-workaround
-  "A style element to workaround refresh problems in webkit."
+  "A style element to work around refresh problems in webkit."
   []
   (style {:id :webkit-refresh-workaround}
          (css ["@-webkit-keyframes" :androidBugfix]

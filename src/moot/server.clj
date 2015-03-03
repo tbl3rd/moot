@@ -112,7 +112,7 @@
   "Result is:" {MAP-ID (get-in @the-maps MAP-ID)})
 
 (defmacro do-or-nil
-  "Value of BODY or nil if BODY throws."
+  "Value of BODY or nil if it throws."
   [& body]
   `(try (do ~@body) (catch Exception x# (println x#))))
 
@@ -137,8 +137,7 @@
                     value (select-keys you [:id :title :color])
                     all (set (vals (get @the-maps map-id)))]
                 {:status 200
-                 :cookies {(str map-id)
-                           {:max-age 0 :path uri :value value}}
+                 :cookies {(str map-id) {:max-age week :path uri :value value}}
                  :body (pr-str {:map-id map-id :you you :all all})}))]
       (cond (and map-id (= :post (:request-method request)))
             (let [guy (edn/read-string (:body request))
