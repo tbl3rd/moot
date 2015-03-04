@@ -15,22 +15,22 @@
   "The state of the client."
   (atom {:you {:id 105 :title "Mr Pink"      :color :pink
                :position {:lat 42.365257 :lng -71.087246}}
-         :all #{{:id 101 :title "Mr Blue"      :color :blue
-                 :position {:lat 42.357465 :lng -71.095194}}
-                {:id 102 :title "Mr Green"     :color :green
-                 :position {:lat 42.364251 :lng -71.110300}}
-                {:id 103 :title "Mr LightBlue" :color :lightblue
-                 :position {:lat 42.364876 :lng -71.102352}}
-                {:id 104 :title "Mr Orange"    :color :orange
-                 :position {:lat 42.369347 :lng -71.101107}}
-                {:id 105 :title "Mr Pink"      :color :pink
-                 :position {:lat 42.365257 :lng -71.087246}}
-                {:id 106 :title "Mr Purple"    :color :purple
-                 :position {:lat 42.361198 :lng -71.103983}}
-                {:id 107 :title "Mr Red"       :color :red
-                 :position {:lat 42.372083 :lng -71.082062}}
-                {:id 108 :title "Mr Yellow"    :color :yellow
-                 :position {:lat 42.366465 :lng -71.095194}}}
+         :all {101 {:id 101 :title "Mr Blue"      :color :blue
+                    :position {:lat 42.357465 :lng -71.095194}}
+               102 {:id 102 :title "Mr Green"     :color :green
+                    :position {:lat 42.364251 :lng -71.110300}}
+               103 {:id 103 :title "Mr LightBlue" :color :lightblue
+                    :position {:lat 42.364876 :lng -71.102352}}
+               104 {:id 104 :title "Mr Orange"    :color :orange
+                    :position {:lat 42.369347 :lng -71.101107}}
+               105 {:id 105 :title "Mr Pink"      :color :pink
+                    :position {:lat 42.365257 :lng -71.087246}}
+               106 {:id 106 :title "Mr Purple"    :color :purple
+                    :position {:lat 42.361198 :lng -71.103983}}
+               107 {:id 107 :title "Mr Red"       :color :red
+                    :position {:lat 42.372083 :lng -71.082062}}
+               108 {:id 108 :title "Mr Yellow"    :color :yellow
+                    :position {:lat 42.366465 :lng -71.095194}}}
          :map-id 901
          :markers {}
          :the-map nil}))
@@ -44,7 +44,7 @@
                   (let [you (:you state)]
                     (-> state
                         (update-in [:you :title] namer)
-                        (update-in [:all] conj you))))
+                        (update-in [:all] assoc id you))))
         state (swap! state swapper)]
     (.setItem js/localStorage (str (:map-id state)) name)
     (.setTitle (get-in state [:markers id]) name)))
@@ -245,10 +245,11 @@
 
 (defn mark-guy
   "Drop a marker for guy on map and show it when visible?."
-  [map guy visible?]
+  [guy visible?]
+  (log [:mark-guy :guy guy :visible? visible?])
   (google.maps.Marker.
    (clj->js (assoc guy
-                   :map map
+                   :map (:the-map @state)
                    :icon (goog-map-micon (:color guy))
                    :visible visible?))))
 
@@ -258,7 +259,8 @@
   (let [state @state]
     (.fitBounds (:the-map state)
                 (new-goog-bound
-                 (map (comp new-goog-latlng :position) (:all state))))))
+                 (map (comp new-goog-latlng :position)
+                      (vals (:all state)))))))
 
 (defn new-map-guys
   "A new map showing all the guys."
@@ -274,7 +276,7 @@
     (.fitBounds the-map bound)
     (let [markers
           (reduce conj {}
-                  (for [g guys] [(:id g) (mark-guy the-map g true)]))]
+                  (for [g guys] [(:id g) (mark-guy g true)]))]
       (swap! state #(-> %
                         (assoc :markers markers)
                         (assoc :the-map the-map))))
@@ -338,7 +340,7 @@
   "Render the legend according to state."
   [state]
   (let [you (:you state)
-        guys (cons you (remove #(= (:id you) (:id %)) (:all state)))
+        guys (cons you (remove #(= (:id you) (:id %)) (vals (:all state))))
         close (span {:id :close :class :guy :align :right}
                     (button {:type :button} "Close"))
         buttons (div {:class :buttons}
@@ -401,22 +403,26 @@
   "Update markers according to response."
   [response]
   (when response
-    (let [old @state
-         the-map (:the-map old)
-         markers (:markers old)
-         cleanup (fn [] (doseq [[id m] markers] (.setMap m nil)))]
-     (swap! state
-            #(assoc response
-                    :the-map the-map
-                    :markers (into {}
-                                   (for [g (:all %)]
-                                     [(:id g) (mark-guy the-map g)]))))
-     (js/setTimeout cleanup 10))))
+    (letfn [(handle [old]
+              (letfn [(mark [id] (mark-guy (get-in response [:all id]) true))
+                      (markit [was id] (or was (mark id)))
+                      (remark [result id] (update-in result [:all id :mark] markit id))]
+                (let [alive (set (keys (:all response)))
+                      dead (remove alive (keys (:all old)))
+                      result (reduce remark response alive)]
+                  (log [:update-markers :result result])
+                  (doseq [id alive]
+                    (.setPosition (get-in result [:all id :mark])
+                                  (clj->js (get-in result [:all id :position]))))
+                  (doseq [id dead]
+                    (.setMap (get-in old [:all id :mark]) nil))
+                  (assoc result :the-map (:the-map old)))))]
+      (swap! state handle))))
 
 (defn update-position
   "Update the server with your current position."
   []
-  (letfn [(swapper [position]
+  (letfn [(handle [position]
             (let [coords (.-coords position)
                   lat (.-latitude coords) lng (.-longitude coords)
                   position (constantly {:lat lat :lng lng})
@@ -425,7 +431,7 @@
               (http-post uri (pr-str (:you state)) update-markers)))]
     (try (-> js/navigator
              .-geolocation
-             (.getCurrentPosition swapper js/alert))
+             (.getCurrentPosition handle js/alert))
          (catch js/Error e (.log js/console e)))))
 
 (defn call-periodically-when-visible
@@ -454,7 +460,7 @@
         (body {}
               (render-you state)
               (render-legend state)
-              (new-map-guys (:all state))))
+              (new-map-guys (vals (:all state)))))
   (show-legend! false)
   (call-periodically-when-visible (* 5 1000) update-position))
 

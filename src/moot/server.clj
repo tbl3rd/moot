@@ -135,7 +135,7 @@
     (letfn [(succeed [map-id you]
               (let [week (* 7 24 60 60)
                     value (select-keys you [:id :title :color])
-                    all (set (vals (get @the-maps map-id)))]
+                    all (get @the-maps map-id)]
                 {:status 200
                  :cookies {(str map-id) {:max-age week :path uri :value value}}
                  :body (pr-str {:map-id map-id :you you :all all})}))]
