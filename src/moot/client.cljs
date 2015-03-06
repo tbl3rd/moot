@@ -40,10 +40,9 @@
   (let [id (get-in @state [:you :id])
         state (swap! state
                      (fn [state]
-                       (let [you (:you state)]
-                         (-> state
-                             (assoc-in [:you :title] name)
-                             (update-in [:all] assoc id you)))))]
+                       (-> state
+                           (assoc-in [:you :title] name)
+                           (assoc-in [:all id :title] name))))]
     (.setItem js/localStorage (str (:map-id state)) name)
     (when-let [mark (get-in state [:all id :mark])]
       (.setTitle mark name))))
@@ -243,13 +242,13 @@
              :drop   google.maps.Animation.DROP} how how)))))
 
 (defn new-mark-for-guy
-  "Drop a marker for guy on :the-map and show it when visible?."
-  [guy visible?]
+  "Drop a marker for guy on :the-map."
+  [guy]
   (google.maps.Marker.
    (clj->js (assoc guy
                    :map (:the-map @state)
                    :icon (goog-map-micon (:color guy))
-                   :visible visible?))))
+                   :visible true))))
 
 (defn show-all-guys
   "Adjust the map so that all the markers are on it."
@@ -274,7 +273,7 @@
     (.fitBounds the-map bound)
     (let [markers
           (reduce conj {}
-                  (for [g guys] [(:id g) (new-mark-for-guy g true)]))]
+                  (for [g guys] [(:id g) (new-mark-for-guy g)]))]
       (swap! state assoc :the-map the-map))
     result))
 
@@ -402,7 +401,7 @@
     (letfn [(handle [old]
               (letfn [(markit [was id]
                         (or was (new-mark-for-guy
-                                 (get-in response [:all id]) true)))
+                                 (get-in response [:all id]))))
                       (remark [result id]
                         (update-in result [:all id :mark] markit id))]
                 (let [alive (set (keys (:all response)))
@@ -423,8 +422,8 @@
   (letfn [(handle [position]
             (let [coords (.-coords position)
                   lat (.-latitude coords) lng (.-longitude coords)
-                  position (constantly {:lat lat :lng lng})
-                  state (swap! state update-in [:you :position] position)
+                  position {:lat lat :lng lng}
+                  state (swap! state assoc-in [:you :position] position)
                   uri (str "/update/" (or (:map-id state) 0) "/")]
               (http-post uri (pr-str (:you state)) update-markers)))]
     (try (-> js/navigator
