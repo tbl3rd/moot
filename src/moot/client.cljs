@@ -32,34 +32,33 @@
                108 {:id 108 :title "Mr Yellow"    :color :yellow
                     :position {:lat 42.366465 :lng -71.095194}}}
          :map-id 901
-         :markers {}
          :the-map nil}))
 
 (defn my-name-is!
   "Update your name everywhere it matters."
   [name]
   (let [id (get-in @state [:you :id])
-        namer (constantly name)
-        swapper (fn [state]
-                  (let [you (:you state)]
-                    (-> state
-                        (update-in [:you :title] namer)
-                        (update-in [:all] assoc id you))))
-        state (swap! state swapper)]
+        state (swap! state
+                     (fn [state]
+                       (let [you (:you state)]
+                         (-> state
+                             (assoc-in [:you :title] name)
+                             (update-in [:all] assoc id you)))))]
     (.setItem js/localStorage (str (:map-id state)) name)
-    (.setTitle (get-in state [:markers id]) name)))
+    (when-let [mark (get-in state [:all id :mark])]
+      (.setTitle mark name))))
 
 (defn marker-visible?
   "True if marker for id is visible.  False otherwise."
   [id]
-  (if-let [marker (get-in @state [:markers id])]
+  (if-let [marker (get-in @state [:all id :mark])]
     (.getVisible marker)
     true))
 
 (defn set-visible!
   "Set visibility of marker with id to visible?."
   [id visible?]
-  (if-let [marker (get-in @state [:markers id])]
+  (if-let [marker (get-in @state [:all id :mark])]
     (.setVisible marker visible?)))
 
 (def marker-icon-colors
@@ -237,16 +236,15 @@
   [id & how]
   (let [how (first how)]
     (if how (.setTimeout js/window #(animate-marker! id) 2100))
-    (if-let [marker (get-in @state [:markers id])]
+    (if-let [marker (get-in @state [:all id :mark])]
       (.setAnimation
        marker
        (get {:bounce google.maps.Animation.BOUNCE
              :drop   google.maps.Animation.DROP} how how)))))
 
-(defn mark-guy
-  "Drop a marker for guy on map and show it when visible?."
+(defn new-mark-for-guy
+  "Drop a marker for guy on :the-map and show it when visible?."
   [guy visible?]
-  (log [:mark-guy :guy guy :visible? visible?])
   (google.maps.Marker.
    (clj->js (assoc guy
                    :map (:the-map @state)
@@ -276,10 +274,8 @@
     (.fitBounds the-map bound)
     (let [markers
           (reduce conj {}
-                  (for [g guys] [(:id g) (mark-guy g true)]))]
-      (swap! state #(-> %
-                        (assoc :markers markers)
-                        (assoc :the-map the-map))))
+                  (for [g guys] [(:id g) (new-mark-for-guy g true)]))]
+      (swap! state assoc :the-map the-map))
     result))
 
 (defn goog-icon-img-for
@@ -404,16 +400,18 @@
   [response]
   (when response
     (letfn [(handle [old]
-              (letfn [(mark [id] (mark-guy (get-in response [:all id]) true))
-                      (markit [was id] (or was (mark id)))
-                      (remark [result id] (update-in result [:all id :mark] markit id))]
+              (letfn [(markit [was id]
+                        (or was (new-mark-for-guy
+                                 (get-in response [:all id]) true)))
+                      (remark [result id]
+                        (update-in result [:all id :mark] markit id))]
                 (let [alive (set (keys (:all response)))
                       dead (remove alive (keys (:all old)))
                       result (reduce remark response alive)]
-                  (log [:update-markers :result result])
                   (doseq [id alive]
                     (.setPosition (get-in result [:all id :mark])
-                                  (clj->js (get-in result [:all id :position]))))
+                                  (clj->js
+                                   (get-in result [:all id :position]))))
                   (doseq [id dead]
                     (.setMap (get-in old [:all id :mark]) nil))
                   (assoc result :the-map (:the-map old)))))]
