@@ -396,29 +396,29 @@
            (clj->js {:content-type "application/edn"}))))
 
 (defn update-markers
-  "Update markers according to response."
+  "Use response to update markers.  Add new markers as necessary,
+  then update position of live markers, and null out the map in the
+  dead markers."
   [response]
   (when response
-    (letfn [(markers [result]
-              (let [marks (:markers result)]
-                (letfn [(reducer [result id guy]
-                          (let [mark (or (get marks id)
-                                         (new-mark-for-guy guy))]
-                            (assoc result id mark)))]
-                        (reduce-kv reducer {} (:all result)))))
+    (letfn [(ensure-markers [old]
+              "Ensure a marker for each guy for new :markers."
+              (reduce-kv
+               (fn [result id guy]
+                 (assoc result id
+                        (or (get-in old [:markers id])
+                            (new-mark-for-guy guy))))
+               {} (:all response)))
             (handle [old]
-              (let [alive (set (keys (:all response)))
-                    dead (remove alive (keys (:all old)))
-                    result (merge old response)
-                    result (assoc result :markers (markers result))]
+              (let [alive (keys (:all response))
+                    markers (ensure-markers old)]
                 (doseq [id alive]
-                  (let [guy (get (:all old) id)]
-                    (.setPosition
-                     (get (:markers result) id)
-                     (clj->js (:position guy)))))
-                (doseq [id dead]
-                  (.setMap (get-in old [:all id :mark]) nil))
-                result))]
+                  (.setPosition
+                   (get markers id)
+                   (clj->js (get-in response [:all id :position]))))
+                (doseq [id (remove (set alive) (keys (:all old)))]
+                  (.setMap (get-in old [:markers id]) nil))
+                (assoc (merge old response) :markers markers)))]
       (swap! state handle))))
 
 (defn update-position
