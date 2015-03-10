@@ -31,6 +31,7 @@
                     :position {:lat 42.372083 :lng -71.082062}}
                108 {:id 108 :title "Mr Yellow"    :color :yellow
                     :position {:lat 42.366465 :lng -71.095194}}}
+         :markers {}
          :map-id 901
          :the-map nil}))
 
@@ -398,22 +399,26 @@
   "Update markers according to response."
   [response]
   (when response
-    (letfn [(handle [old]
-              (letfn [(markit [was id]
-                        (or was (new-mark-for-guy
-                                 (get-in response [:all id]))))
-                      (remark [result id]
-                        (update-in result [:all id :mark] markit id))]
-                (let [alive (set (keys (:all response)))
-                      dead (remove alive (keys (:all old)))
-                      result (reduce remark response alive)]
-                  (doseq [id alive]
-                    (.setPosition (get-in result [:all id :mark])
-                                  (clj->js
-                                   (get-in result [:all id :position]))))
-                  (doseq [id dead]
-                    (.setMap (get-in old [:all id :mark]) nil))
-                  (assoc result :the-map (:the-map old)))))]
+    (letfn [(markers [result]
+              (let [marks (:markers result)]
+                (letfn [(reducer [result id guy]
+                          (let [mark (or (get marks id)
+                                         (new-mark-for-guy guy))]
+                            (assoc result id mark)))]
+                        (reduce-kv reducer {} (:all result)))))
+            (handle [old]
+              (let [alive (set (keys (:all response)))
+                    dead (remove alive (keys (:all old)))
+                    result (merge old response)
+                    result (assoc result :markers (markers result))]
+                (doseq [id alive]
+                  (let [guy (get (:all old) id)]
+                    (.setPosition
+                     (get (:markers result) id)
+                     (clj->js (:position guy)))))
+                (doseq [id dead]
+                  (.setMap (get-in old [:all id :mark]) nil))
+                result))]
       (swap! state handle))))
 
 (defn update-position
