@@ -58,7 +58,7 @@
 (defn set-visible!
   "Set visibility of marker with id to visible?."
   [id visible?]
-  (if-let [marker (get-in @state [:markers id])]
+  (when-let [marker (get-in @state [:markers id])]
     (.setVisible marker visible?)))
 
 (def marker-icon-colors
@@ -142,8 +142,8 @@
 (defn append-child!
   "Append HTML element child to parent."
   [parent child]
-  (let [parent (get {:head (.-head js/document)
-                     :body (.-body js/document)}
+  (let [parent (get {:head (aget js/document "head")
+                     :body (aget js/document "body")}
                     parent parent)]
     (.appendChild parent child)))
 
@@ -162,9 +162,9 @@
   "An element function for tag that takes an attribute map and a
   sequence of child elements and renders them in HTMl."
   [tag]
-  (let [make (get {:html #(.-documentElement %)
-                   :head #(.-head %)
-                   :body #(.-body %)} tag
+  (let [make (get {:html #(aget % "documentElement")
+                   :head #(aget % "head")
+                   :body #(aget % "body")} tag
                    #(.createElement % (name tag)))]
     (fn [attributes & kids]
       (let [element (make js/document)]
@@ -293,13 +293,13 @@
     (div {:id title :class :guy}
          (span {}
                (let [checkbox (input {:type :checkbox})
-                     click #(set-visible! id (.-checked checkbox))]
+                     click #(set-visible! id (aget checkbox "checked"))]
                  (when (marker-visible? id) (aset checkbox "checked" true))
                  (doto checkbox (goog.events/listen "click" click)))
                (goog-icon-img-for guy)
                (if (= (get-in @state [:you :id]) id)
                  (let [text (input {:type :text :value title})
-                       keyup #(my-name-is! (.-value text))]
+                       keyup #(my-name-is! (aget text "value"))]
                    (doto text (goog.events/listen "keyup" keyup)))
                  title)))))
 
@@ -317,7 +317,7 @@
                           (span {} checkbox icon title)))]
     (when (marker-visible? (:id you)) (aset checkbox "checked" true))
     (goog.events/listen control "click" render-legend)
-    (doto (aget (.-controls the-map) google.maps.ControlPosition.TOP_LEFT)
+    (doto (aget the-map "controls" google.maps.ControlPosition.TOP_LEFT)
       (.pop)
       (.push control))))
 
@@ -337,7 +337,7 @@
                        (concat (for [guy guys] (legend-for-guy guy))
                                (list buttons)))]
     (goog.events/listen close "click" render-you)
-    (doto (aget (.-controls the-map) google.maps.ControlPosition.TOP_LEFT)
+    (doto (aget the-map "controls" google.maps.ControlPosition.TOP_LEFT)
       (.pop)
       (.push control))))
 
@@ -412,14 +412,13 @@
   "Update the server with your current position."
   []
   (letfn [(handle [position]
-            (let [coords (.-coords position)
-                  lat (.-latitude coords) lng (.-longitude coords)
-                  position {:lat lat :lng lng}
-                  state (swap! state assoc-in [:you :position] position)
+            (let [state (swap! state assoc-in [:you :position]
+                               {:lat (aget position "coords" "latitude")
+                                :lng (aget position "coords" "longitude")})
                   uri (str "/update/" (or (:map-id state) 0) "/")]
               (http-post uri (pr-str (:you state)) update-markers)))]
     (try (-> js/navigator
-             .-geolocation
+             (aget "geolocation")
              (.getCurrentPosition handle js/alert))
          (catch js/Error e (.log js/console e)))))
 
@@ -427,7 +426,7 @@
   "Call f with args every ms milliseconds when document is visible."
   ([ms f]
    (letfn [(call [id]
-             (let [id (if (.-hidden js/document)
+             (let [id (if (aget js/document "hidden")
                         (and id (js/clearInterval id) nil)
                         (js/setInterval f ms))]
                (goog.events/listenOnce
