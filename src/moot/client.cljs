@@ -45,20 +45,20 @@
                            (assoc-in [:you :title] name)
                            (assoc-in [:all id :title] name))))]
     (.setItem js/localStorage (str (:map-id state)) name)
-    (when-let [mark (get-in state [:all id :mark])]
+    (when-let [mark (get-in state [:markers id])]
       (.setTitle mark name))))
 
 (defn marker-visible?
   "True if marker for id is visible.  False otherwise."
   [id]
-  (if-let [marker (get-in @state [:all id :mark])]
+  (if-let [marker (get-in @state [:markers id])]
     (.getVisible marker)
     true))
 
 (defn set-visible!
   "Set visibility of marker with id to visible?."
   [id visible?]
-  (if-let [marker (get-in @state [:all id :mark])]
+  (if-let [marker (get-in @state [:markers id])]
     (.setVisible marker visible?)))
 
 (def marker-icon-colors
@@ -139,14 +139,13 @@
                (fn? props) (props)
                :else (doto props #(js/alert (pr-str {:css-rules %})))))))
 
-(defn append-child
+(defn append-child!
   "Append HTML element child to parent."
   [parent child]
   (let [parent (get {:head (.-head js/document)
                      :body (.-body js/document)}
                     parent parent)]
-    (.appendChild parent child)
-    parent))
+    (.appendChild parent child)))
 
 (defn set-attributes
   "Set attributes on element according to attribute-map."
@@ -171,9 +170,10 @@
       (let [element (make js/document)]
         (set-attributes element attributes)
         (doseq [kid kids]
-          (cond (instance? js/Element kid) (append-child element kid)
+          (cond (instance? js/Element kid) (append-child! element kid)
                 (fn? kid) (js/alert "(fn? kid)")
-                :else (append-child element (.createTextNode js/document kid))))
+                :else (append-child! element
+                                     (.createTextNode js/document kid))))
         element))))
 
 (def body     (element-for-tag :body))
@@ -236,7 +236,7 @@
   [id & how]
   (let [how (first how)]
     (if how (.setTimeout js/window #(animate-marker! id) 2100))
-    (if-let [marker (get-in @state [:all id :mark])]
+    (if-let [marker (get-in @state [:markers id])]
       (.setAnimation
        marker
        (get {:bounce google.maps.Animation.BOUNCE
@@ -289,66 +289,60 @@
 (defn legend-for-guy
   "The legend entry for guy."
   [guy]
-  (let [id (:id guy)
-        title (:title guy)
-        you? (= (get-in @state [:you :id]) id)]
+  (let [id (:id guy) title (:title guy)]
+    (log [:legend-for-guy :id id :visible? (marker-visible? id)])
     (div {:id title :class :guy}
          (span {}
-               (let [visible? (marker-visible? id)]
-                 (doto (input {:type :checkbox :checked visible?})
-                   (goog.events/listen "click" #(set-visible! id (not visible?)))))
+               (let [cb (input {:type :checkbox})
+                     click #(set-visible! id (.-checked cb))]
+                 (when (marker-visible? id) (aset cb "checked" true))
+                 (doto cb (goog.events/listen "click" click)))
                (goog-icon-img-for guy)
-               (if you?
-                 (let [text (input {:type :text :value title})]
-                   (doto text
-                     (goog.events/listen "keyup" #(my-name-is! (.-value text)))))
+               (if (= (get-in @state [:you :id]) id)
+                 (let [text (input {:type :text :value title})
+                       keyup #(my-name-is! (.-value text))]
+                   (doto text (goog.events/listen "keyup" keyup)))
                  title)))))
 
-(defn show-legend!
-  "Show the legend if show?.  Otherwise hide it."
-  [show?]
-  (let [table {:legend {true "flex" false "none"}
-               :you    {true "none" false "flex"}}]
-    (letfn [(setter!
-              [id show]
-              (aset (element-by-id id) "style" "display"
-                    (get-in table [id show])))]
-      (setter! :legend show?)
-      (setter! :you    show?))))
+(declare render-legend)
 
 (defn render-you
   "Render the abbreviated you legend."
-  [state]
-  (let [you (:you state)
-        title (:title you)
-        result (div {:id :you :class "legend"}
-                    (div {:id title :class :guy}
-                         (span {}
-                               (input {:type :checkbox
-                                       :disabled true
-                                       :checked  (marker-visible? (:id you))})
-                               (goog-icon-img-for you)
-                               title)))]
-    (goog.events/listen result "click" #(show-legend! true))
-    result))
+  []
+  (let [state @state
+        the-map (:the-map state) you (:you state) title (:title you)
+        control (div {:id :you :class "legend"}
+                     (div {:id title :class :guy}
+                          (span {}
+                                (input {:type :checkbox
+                                        :disabled false
+                                        :checked  (marker-visible? (:id you))})
+                                (goog-icon-img-for you)
+                                title)))]
+    (goog.events/listen control "click" render-legend)
+    (doto (aget (.-controls the-map) google.maps.ControlPosition.TOP_LEFT)
+      (.pop)
+      (.push control))))
 
 (defn render-legend
-  "Render the legend according to state."
-  [state]
-  (let [you (:you state)
+  "Render the legend."
+  []
+  (let [state @state the-map (:the-map state) you (:you state)
         guys (cons you (remove #(= (:id you) (:id %)) (vals (:all state))))
         close (span {:id :close :class :guy :align :right}
                     (button {:type :button} "Close"))
         buttons (div {:class :buttons}
-                     (span {:class :guy :id :close :align :left}
+                     (span {:class :guy :align :left}
                            (doto (button {:type :button} "Where is everyone?")
                              (goog.events/listen "click" show-all-guys)))
                      close)
-        result (apply (partial div {:id :legend :class "legend"})
-                      (concat (for [guy guys] (legend-for-guy guy))
-                              (list buttons)))]
-    (goog.events/listen close "click" #(show-legend! false))
-    result))
+        control (apply (partial div {:id :legend :class "legend"})
+                       (concat (for [guy guys] (legend-for-guy guy))
+                               (list buttons)))]
+    (goog.events/listen close "click" render-you)
+    (doto (aget (.-controls the-map) google.maps.ControlPosition.TOP_LEFT)
+      (.pop)
+      (.push control))))
 
 (defn style-webkit-refresh-workaround
   "A style element to work around refresh problems in webkit."
@@ -372,13 +366,10 @@
              (css :#the-map full-page)
              (css :.legend {:background :#fff
                             :display :flex
-                            (prefix :flex) [1 1 :auto]
+                            (prefix :flex) :auto
                             :flex-direction :column
                             :overflow :auto
                             :min-height {:px 0}
-                            :pointer-events :inherit
-                            :position :fixed
-                            :z-index 99
                             (prefix :transition) [:all {:s 0.25} :ease-out]})
              (css :img.legend-icon {:vertical-align :middle})
              (css :.guy {:margin {:px 10}})
@@ -402,7 +393,6 @@
   [response]
   (when response
     (letfn [(ensure-markers [old]
-              "Ensure a marker for each guy for new :markers."
               (reduce-kv
                (fn [result id guy]
                  (assoc result id
@@ -421,7 +411,7 @@
                 (assoc (merge old response) :markers markers)))]
       (swap! state handle))))
 
-(defn update-position
+(defn update-state
   "Update the server with your current position."
   []
   (letfn [(handle [position]
@@ -459,12 +449,9 @@
               (title {} "Where is everyone?")
               (style-webkit-refresh-workaround)
               (style-other-elements-on-page))
-        (body {}
-              (render-you state)
-              (render-legend state)
-              (new-map-guys (vals (:all state)))))
-  (show-legend! false)
-  (call-periodically-when-visible (* 5 1000) update-position))
+        (body {} (new-map-guys (vals (:all state)))))
+  (render-you)
+  (call-periodically-when-visible (* 5 1000) update-state))
 
 (goog.events/listenOnce js/window "load" #(page @state))
 
