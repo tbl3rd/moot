@@ -316,7 +316,7 @@
                      (div {:id title :class :guy}
                           (span {} checkbox icon title)))]
     (when (marker-visible? (:id you)) (aset checkbox "checked" true))
-    (goog.events/listen control "click" render-legend)
+    (goog.events/listenOnce control "click" render-legend)
     (doto (aget the-map "controls" google.maps.ControlPosition.TOP_LEFT)
       (.pop)
       (.push control))))
@@ -336,7 +336,7 @@
         control (apply (partial div {:id :legend :class "legend"})
                        (concat (for [guy guys] (legend-for-guy guy))
                                (list buttons)))]
-    (goog.events/listen close "click" render-you)
+    (goog.events/listenOnce close "click" render-you)
     (doto (aget the-map "controls" google.maps.ControlPosition.TOP_LEFT)
       (.pop)
       (.push control))))
