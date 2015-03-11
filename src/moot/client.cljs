@@ -290,13 +290,12 @@
   "The legend entry for guy."
   [guy]
   (let [id (:id guy) title (:title guy)]
-    (log [:legend-for-guy :id id :visible? (marker-visible? id)])
     (div {:id title :class :guy}
          (span {}
-               (let [cb (input {:type :checkbox})
-                     click #(set-visible! id (.-checked cb))]
-                 (when (marker-visible? id) (aset cb "checked" true))
-                 (doto cb (goog.events/listen "click" click)))
+               (let [checkbox (input {:type :checkbox})
+                     click #(set-visible! id (.-checked checkbox))]
+                 (when (marker-visible? id) (aset checkbox "checked" true))
+                 (doto checkbox (goog.events/listen "click" click)))
                (goog-icon-img-for guy)
                (if (= (get-in @state [:you :id]) id)
                  (let [text (input {:type :text :value title})
@@ -311,14 +310,12 @@
   []
   (let [state @state
         the-map (:the-map state) you (:you state) title (:title you)
+        checkbox (input {:type :checkbox :disabled true})
+        icon (goog-icon-img-for you)
         control (div {:id :you :class "legend"}
                      (div {:id title :class :guy}
-                          (span {}
-                                (input {:type :checkbox
-                                        :disabled false
-                                        :checked  (marker-visible? (:id you))})
-                                (goog-icon-img-for you)
-                                title)))]
+                          (span {} checkbox icon title)))]
+    (when (marker-visible? (:id you)) (aset checkbox "checked" true))
     (goog.events/listen control "click" render-legend)
     (doto (aget (.-controls the-map) google.maps.ControlPosition.TOP_LEFT)
       (.pop)
