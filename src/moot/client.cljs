@@ -214,11 +214,6 @@
     (doseq [ll latlngs] (.extend result ll))
     result))
 
-(defn new-goog-map
-  "A new Google map on element with options."
-  [element options]
-  (google.maps.Map. element (clj->js options)))
-
 (defn goog-map-icon
   "The icon with color."
   [color]
@@ -262,20 +257,17 @@
 
 (defn new-map-guys
   "A new map showing all the guys."
-  [guys]
-  (let [bound (new-goog-bound (map (comp new-goog-latlng :position) guys))
-        bottom-right google.maps.ControlPosition.BOTTOM_RIGHT
-        options {:center (.getCenter bound)
-                 :zoom 8
-                 :panControlOptions {:position bottom-right}
-                 :zoomControlOptions {:position bottom-right}}
+  []
+  (let [guys (vals (:all @state))
+        bound (new-goog-bound (map (comp new-goog-latlng :position) guys))
+        bottom-right {:position google.maps.ControlPosition.BOTTOM_RIGHT}
+        options {:zoom 8 :center (.getCenter bound)
+                 :panControlOptions bottom-right
+                 :zoomControlOptions bottom-right}
         result (or (element-by-id :the-map) (div {:id :the-map}))
-        the-map (new-goog-map result options)]
+        the-map (google.maps.Map. result (clj->js options))]
     (.fitBounds the-map bound)
-    (let [markers
-          (reduce conj {}
-                  (for [g guys] [(:id g) (new-mark-for-guy g)]))]
-      (swap! state assoc :the-map the-map))
+    (swap! state assoc :the-map the-map)
     result))
 
 (defn goog-icon-img-for
@@ -445,7 +437,7 @@
               (title {} "Where is everyone?")
               (style-webkit-refresh-workaround)
               (style-other-elements-on-page))
-        (body {} (new-map-guys (vals (:all state)))))
+        (body {} (new-map-guys)))
   (render-you)
   (call-periodically-when-visible (* 5 1000) update-state))
 
