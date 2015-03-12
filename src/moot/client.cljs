@@ -18,9 +18,7 @@
 
 (def state
   "The state of the client."
-  (atom {:you {:id 105 :title "Mr Pink"      :color :pink
-               :position {:lat 42.365257 :lng -71.087246}}
-         :map-id 901}))
+  (atom {:map-id 901}))
 
 (defn my-name-is!
   "Update your name everywhere it matters."
@@ -291,7 +289,7 @@
    (call-periodically-when-visible (fn [] (apply f x args)) ms)))
 
 (defn new-goog-map
-  "A new map showing all the guys."
+  "A new Google map."
   []
   (let [result (or (element-by-id :the-map) (div {:id :the-map}))
         bottom-right {:position google.maps.ControlPosition.BOTTOM_RIGHT}]
