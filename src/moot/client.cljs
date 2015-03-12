@@ -1,5 +1,7 @@
 (ns moot.client
-  (:require [cljs.reader :as reader]
+  (:require-macros [cljs.core.async.macros :refer [go]])
+  (:require [cljs.core.async :refer [put! chan <!]]
+            [cljs.reader :as reader]
             [clojure.string :as s]
             [goog.dom :as goog.dom]
             [goog.events :as goog.events]
@@ -263,18 +265,15 @@
                    (doto text (goog.events/listen "keyup" keyup)))
                  title)))))
 
-(declare render-legend)
+(defn add-map-control
+  "Put CONTROL in top left of map."
+  [control]
+  (let [corner (aget (:the-map @state) "controls"
+                     google.maps.ControlPosition.TOP_LEFT)]
+    (if (> (.getLength corner) 0) (.pop corner))
+    (.push corner control)))
 
-(defn use-control
-  "Put CONTROL in top left of map to run CLICK when clicked."
-  [control click]
-  (goog.events/listenOnce control "click" click)
-  (try
-    (let [corner (aget (:the-map @state) "controls"
-                       google.maps.ControlPosition.TOP_LEFT)]
-      (.pop corner)
-      (.push corner control))
-    (catch :default x (log x))))
+(declare render-legend)
 
 (defn render-you
   "Render the abbreviated you legend."
@@ -287,7 +286,8 @@
                      (div {:id title :class :guy}
                           (span {} checkbox icon title)))]
     (when (marker-visible? (:id you)) (aset checkbox "checked" true))
-    (use-control control render-legend)))
+    (goog.events/listenOnce control "click" render-legend)
+    (add-map-control control)))
 
 (defn render-legend
   "Render the legend."
@@ -304,7 +304,8 @@
         control (apply (partial div {:id :legend :class "legend"})
                        (concat (for [guy guys] (legend-for-guy guy))
                                (list buttons)))]
-    (use-control control render-you)))
+    (goog.events/listenOnce close "click" render-you)
+    (add-map-control control)))
 
 (defn style-webkit-refresh-workaround
   "A style element to work around refresh problems in webkit."
@@ -371,21 +372,36 @@
                 (doseq [id (remove (set alive) (keys (:all old)))]
                   (.setMap (get-in old [:markers id]) nil))
                 (assoc (merge old response) :markers markers)))]
-      (swap! state handle))))
+      (let [first-update? (nil? (:markers @state))]
+        (swap! state handle)
+        (when first-update? (show-all-guys) (render-you))))))
+
+(defn update-position
+  "Call handler with the current position."
+  [handler]
+  (try (-> js/navigator
+           (aget "geolocation")
+           (.getCurrentPosition handler js/alert))
+       (catch :default x (log x))))
+
+(defn update-position
+  "Call handler with the current position."
+  [handler]
+  (try
+    (.getCurrentPosition (aget js/navigator "geolocation") handler js/alert)
+    (catch :default x (log x))))
 
 (defn update-state
-  "Update the server with your current position."
+  "Update client state after sending position to server."
   []
-  (letfn [(handle [position]
-            (let [state (swap! state assoc-in [:you :position]
-                               {:lat (aget position "coords" "latitude")
-                                :lng (aget position "coords" "longitude")})
+  (letfn [(handler [position]
+            (let [coords (aget position "coords")
+                  state (swap! state assoc-in [:you :position]
+                               {:lat (aget coords "latitude")
+                                :lng (aget coords "longitude")})
                   uri (str "/update/" (or (:map-id state) 0) "/")]
               (http-post uri (pr-str (:you state)) update-markers)))]
-    (try (-> js/navigator
-             (aget "geolocation")
-             (.getCurrentPosition handle js/alert))
-         (catch js/Error e (.log js/console e)))))
+    (update-position handler)))
 
 (defn call-periodically-when-visible
   "Call f with args every ms milliseconds when document is visible."
@@ -403,17 +419,21 @@
 (defn new-goog-map
   "A new map showing all the guys."
   []
-  (let [guys (vals (:all @state))
-        bound (new-goog-bound (map (comp new-goog-latlng :position) guys))
-        bottom-right {:position google.maps.ControlPosition.BOTTOM_RIGHT}
-        options {:zoom 8 :center (.getCenter bound)
-                 :panControlOptions bottom-right
-                 :zoomControlOptions bottom-right}
-        result (or (element-by-id :the-map) (div {:id :the-map}))
-        the-map (google.maps.Map. result (clj->js options))]
-    (.fitBounds the-map bound)
-    (swap! state assoc :the-map the-map)
-    result))
+  (let [result (or (element-by-id :the-map) (div {:id :the-map}))
+        bottom-right {:position google.maps.ControlPosition.BOTTOM_RIGHT}]
+    (letfn [(handler [position]
+              (let [coords (aget position "coords")
+                    latlng {:lat (aget coords "latitude")
+                            :lng (aget coords "longitude")}
+                    options {:zoom 13 :center (clj->js latlng)
+                             :panControlOptions bottom-right
+                             :zoomControlOptions bottom-right}
+                    the-map (google.maps.Map. result (clj->js options))]
+                (swap! state #(-> %
+                                  (assoc-in [:you :position] latlng)
+                                  (assoc :the-map the-map)))))]
+      (update-position handler)
+      result)))
 
 (defn page
   "Render the page HTML."
@@ -426,7 +446,6 @@
               (style-webkit-refresh-workaround)
               (style-other-elements-on-page))
         (body {} (new-goog-map)))
-  (render-you)
   (log (-> js/document
            (goog.net.Cookies.)
            (.get (str (:map-id state)))))
