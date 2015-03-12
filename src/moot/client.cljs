@@ -3,6 +3,7 @@
             [clojure.string :as s]
             [goog.dom :as goog.dom]
             [goog.events :as goog.events]
+            [goog.net.Cookies :as goog.net.Cookies]
             [goog.net.EventType :as goog.net.EventType]
             [goog.net.XhrIo :as goog.net.XhrIo]))
 
@@ -15,25 +16,7 @@
   "The state of the client."
   (atom {:you {:id 105 :title "Mr Pink"      :color :pink
                :position {:lat 42.365257 :lng -71.087246}}
-         :all {101 {:id 101 :title "Mr Blue"      :color :blue
-                    :position {:lat 42.357465 :lng -71.095194}}
-               102 {:id 102 :title "Mr Green"     :color :green
-                    :position {:lat 42.364251 :lng -71.110300}}
-               103 {:id 103 :title "Mr LightBlue" :color :lightblue
-                    :position {:lat 42.364876 :lng -71.102352}}
-               104 {:id 104 :title "Mr Orange"    :color :orange
-                    :position {:lat 42.369347 :lng -71.101107}}
-               105 {:id 105 :title "Mr Pink"      :color :pink
-                    :position {:lat 42.365257 :lng -71.087246}}
-               106 {:id 106 :title "Mr Purple"    :color :purple
-                    :position {:lat 42.361198 :lng -71.103983}}
-               107 {:id 107 :title "Mr Red"       :color :red
-                    :position {:lat 42.372083 :lng -71.082062}}
-               108 {:id 108 :title "Mr Yellow"    :color :yellow
-                    :position {:lat 42.366465 :lng -71.095194}}}
-         :markers {}
-         :map-id 901
-         :the-map nil}))
+         :map-id 901}))
 
 (defn my-name-is!
   "Update your name everywhere it matters."
@@ -255,21 +238,6 @@
                  (map (comp new-goog-latlng :position)
                       (vals (:all state)))))))
 
-(defn new-map-guys
-  "A new map showing all the guys."
-  []
-  (let [guys (vals (:all @state))
-        bound (new-goog-bound (map (comp new-goog-latlng :position) guys))
-        bottom-right {:position google.maps.ControlPosition.BOTTOM_RIGHT}
-        options {:zoom 8 :center (.getCenter bound)
-                 :panControlOptions bottom-right
-                 :zoomControlOptions bottom-right}
-        result (or (element-by-id :the-map) (div {:id :the-map}))
-        the-map (google.maps.Map. result (clj->js options))]
-    (.fitBounds the-map bound)
-    (swap! state assoc :the-map the-map)
-    result))
-
 (defn goog-icon-img-for
   "The icon image for guy."
   [guy]
@@ -297,6 +265,17 @@
 
 (declare render-legend)
 
+(defn use-control
+  "Put CONTROL in top left of map to run CLICK when clicked."
+  [control click]
+  (goog.events/listenOnce control "click" click)
+  (try
+    (let [corner (aget (:the-map @state) "controls"
+                       google.maps.ControlPosition.TOP_LEFT)]
+      (.pop corner)
+      (.push corner control))
+    (catch :default x (log x))))
+
 (defn render-you
   "Render the abbreviated you legend."
   []
@@ -308,10 +287,7 @@
                      (div {:id title :class :guy}
                           (span {} checkbox icon title)))]
     (when (marker-visible? (:id you)) (aset checkbox "checked" true))
-    (goog.events/listenOnce control "click" render-legend)
-    (doto (aget the-map "controls" google.maps.ControlPosition.TOP_LEFT)
-      (.pop)
-      (.push control))))
+    (use-control control render-legend)))
 
 (defn render-legend
   "Render the legend."
@@ -328,10 +304,7 @@
         control (apply (partial div {:id :legend :class "legend"})
                        (concat (for [guy guys] (legend-for-guy guy))
                                (list buttons)))]
-    (goog.events/listenOnce close "click" render-you)
-    (doto (aget the-map "controls" google.maps.ControlPosition.TOP_LEFT)
-      (.pop)
-      (.push control))))
+    (use-control control render-you)))
 
 (defn style-webkit-refresh-workaround
   "A style element to work around refresh problems in webkit."
@@ -427,6 +400,21 @@
   ([ms f x & args]
    (call-periodically-when-visible (fn [] (apply f x args)) ms)))
 
+(defn new-goog-map
+  "A new map showing all the guys."
+  []
+  (let [guys (vals (:all @state))
+        bound (new-goog-bound (map (comp new-goog-latlng :position) guys))
+        bottom-right {:position google.maps.ControlPosition.BOTTOM_RIGHT}
+        options {:zoom 8 :center (.getCenter bound)
+                 :panControlOptions bottom-right
+                 :zoomControlOptions bottom-right}
+        result (or (element-by-id :the-map) (div {:id :the-map}))
+        the-map (google.maps.Map. result (clj->js options))]
+    (.fitBounds the-map bound)
+    (swap! state assoc :the-map the-map)
+    result))
+
 (defn page
   "Render the page HTML."
   [state]
@@ -437,8 +425,11 @@
               (title {} "Where is everyone?")
               (style-webkit-refresh-workaround)
               (style-other-elements-on-page))
-        (body {} (new-map-guys)))
+        (body {} (new-goog-map)))
   (render-you)
+  (log (-> js/document
+           (goog.net.Cookies.)
+           (.get (str (:map-id state)))))
   (call-periodically-when-visible (* 5 1000) update-state))
 
 (goog.events/listenOnce js/window "load" #(page @state))
