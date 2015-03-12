@@ -17,7 +17,7 @@
 (def the-next-id (atom 0))
 (defn get-next-id [] (swap! the-next-id inc))
 
-(def the-maps
+(def state
   "The participants in a map indexed by map-id."
   (atom nil))
 
@@ -42,7 +42,7 @@
                :position {:lat 42.366465 :lng -71.095194}}]
         result (into {} (for [guy mock :let [id (get-next-id)]]
                           [id (assoc guy :id id)]))]
-    (swap! the-maps assoc map-id result)
+    (swap! state assoc map-id result)
     result))
 
 (def marker-icon-colors
@@ -53,7 +53,7 @@
 
 (defn get-guy-color-for-map
   [map-id guy-id]
-  (let [state @the-maps]
+  (let [state @state]
     (if-let [result (get-in state [map-id guy-id :color])]
       result
       (let [used (set (map :color (vals (get state map-id))))
@@ -63,7 +63,7 @@
 (defn update-map-guy
   "Update guy in map with MAP-ID."
   [map-id guy]
-  (when (not (get @the-maps map-id)) (mock-map map-id))
+  (when (not (get @state map-id)) (mock-map map-id))
   (let [guy-id (or (:id guy) (get-next-id))
         color (get-guy-color-for-map map-id guy-id)
         title (or (:title guy) (str "Mr " (s/capitalize (name color))))
@@ -72,7 +72,7 @@
                  :title title
                  :color color
                  :position position}]
-    (let [state (swap! the-maps update-in [map-id] assoc guy-id new-guy)]
+    (let [state (swap! state update-in [map-id] assoc guy-id new-guy)]
       (println [:update-map-guy :state state])
       (get-in state [map-id guy-id]))))
 
@@ -115,10 +115,10 @@
   "Example: /update/909/"
   "POST" {:id 105 :title "Abe" :position {:lat 42.365257 :lng -71.087246}}
   "If the MAP-ID is 0 or if the MAP-ID is not found, make a new map."
-  "Update" the-maps "with the user's new location and name."
+  "Update" state "with the user's new location and name."
   "If no" :id "entry in user's update info, allocate a color to the user,"
   "and add the user's information to the map for MAP-ID."
-  "Result is:" {MAP-ID (get-in @the-maps MAP-ID)})
+  "Result is:" {MAP-ID (get-in @state MAP-ID)})
 
 (defmacro do-or-nil
   "Value of BODY or nil if it throws."
@@ -144,7 +144,7 @@
     (letfn [(succeed [map-id you]
               (let [week (* 7 24 60 60)
                     value (select-keys you [:id :title :color])
-                    all (get @the-maps map-id)]
+                    all (get @state map-id)]
                 {:status 200
                  :cookies {(str map-id) {:max-age week :path uri :value value}}
                  :body (pr-str {:map-id map-id :you you :all all})}))]
@@ -178,3 +178,4 @@
       wrap-cookies))
 
 (println [:RELOADED 'server])
+
