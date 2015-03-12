@@ -17,8 +17,7 @@
 (set-env!
  :source-paths   #{"src"}
  :resource-paths #{"www"}
- :dependencies '[[org.clojure/core.async "0.1.346.0-17112a-alpha"]
-                 [adzerk/boot-cljs "0.0-2814-1"]
+ :dependencies '[[adzerk/boot-cljs "0.0-2814-1"]
                  [adzerk/boot-cljs-repl "0.1.9"]
                  [adzerk/boot-reload "0.2.4"]
                  [pandeiro/boot-http "0.6.3-SNAPSHOT"]
