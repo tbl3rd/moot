@@ -1,5 +1,8 @@
 (ns moot.client
   (:require [moot.css :refer [css]]
+            [moot.html :refer [element-for-tag body button div form h1 h2
+                               head html img input label link p script
+                               span style textarea title]]
             [cljs.reader :as reader]
             [clojure.string :as s]
             [goog.dom :as goog.dom]
@@ -50,62 +53,6 @@
   (let [colors [:blue :green :red :yellow :orange :pink :purple]
         dotted (map #(keyword (str (name %) "-dot")) colors)]
     (reduce conj colors dotted)))
-
-(defn append-child!
-  "Append HTML element child to parent."
-  [parent child]
-  (let [parent (get {:head (aget js/document "head")
-                     :body (aget js/document "body")}
-                    parent parent)]
-    (.appendChild parent child)))
-
-(defn set-attributes
-  "Set attributes on element according to attribute-map."
-  [element attribute-map]
-  (doseq [[k v] attribute-map]
-    (let [value (cond (true? v) "true"
-                      (false? v) "false"
-                      (number? v) (str v)
-                      (fn? v) v
-                      :else (name v))]
-      (.setAttribute element (name k) value))))
-
-(defn element-for-tag
-  "An element function for tag that takes an attribute map and a
-  sequence of child elements and renders them in HTMl."
-  [tag]
-  (let [make (get {:html #(aget % "documentElement")
-                   :head #(aget % "head")
-                   :body #(aget % "body")} tag
-                   #(.createElement % (name tag)))]
-    (fn [attributes & kids]
-      (let [element (make js/document)]
-        (set-attributes element attributes)
-        (doseq [kid kids]
-          (cond (instance? js/Element kid) (append-child! element kid)
-                (fn? kid) (js/alert "(fn? kid)")
-                :else (append-child! element
-                                     (.createTextNode js/document kid))))
-        element))))
-
-(def body     (element-for-tag :body))
-(def button   (element-for-tag :button))
-(def div      (element-for-tag :div))
-(def form     (element-for-tag :form))
-(def h1       (element-for-tag :h1))
-(def h2       (element-for-tag :h2))
-(def head     (element-for-tag :head))
-(def html     (element-for-tag :html))
-(def img      (element-for-tag :img))
-(def input    (element-for-tag :input))
-(def label    (element-for-tag :label))
-(def link     (element-for-tag :link))
-(def p        (element-for-tag :p))
-(def script   (element-for-tag :script))
-(def span     (element-for-tag :span))
-(def style    (element-for-tag :style))
-(def textarea (element-for-tag :textarea))
-(def title    (element-for-tag :title))
 
 (defn element-by-id
   "Nil or the element with id."
@@ -362,9 +309,9 @@
       (update-position handler)
       result)))
 
-(defn page
+(defn render-page
   "Render the page HTML."
-  [state]
+  []
   (html {}
         (head {}
               (link {:rel :icon :type "image/png" :href "moot.png"})
@@ -375,9 +322,9 @@
         (body {} (new-goog-map)))
   (log (-> js/document
            (goog.net.Cookies.)
-           (.get (str (:map-id state)))))
+           (.get (str (:map-id @state)))))
   (call-periodically-when-visible (* 5 1000) update-state))
 
-(goog.events/listenOnce js/window "load" #(page @state))
+(goog.events/listenOnce js/window "load" render-page)
 
 (println [:RELOADED 'client])
