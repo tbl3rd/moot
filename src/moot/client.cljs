@@ -18,7 +18,7 @@
 
 (def state
   "The state of the client."
-  (atom {:map-id 901}))
+  (atom nil))
 
 (defn my-name-is!
   "Update your name everywhere it matters."
@@ -29,7 +29,8 @@
                        (-> state
                            (assoc-in [:you :title] name)
                            (assoc-in [:all id :title] name))))]
-    (.setItem js/localStorage (str (:map-id state)) name)
+    (when-let [map-id (:map-id state)]
+      (.setItem js/localStorage (str map-id) name))
     (when-let [mark (get-in state [:markers id])]
       (.setTitle mark name))))
 

@@ -18,23 +18,32 @@
 (defn get-next-id [] (swap! the-next-id inc))
 
 (def the-maps
-  "The participants in a map indexed by ID."
-  (atom {901 {101 {:id 101 :title "Mr Blue"      :color :blue
-                   :position {:lat 42.357465 :lng -71.095194}}
-              102 {:id 102 :title "Mr Green"     :color :green
-                   :position {:lat 42.364251 :lng -71.110300}}
-              103 {:id 103 :title "Mr LightBlue" :color :lightblue
-                   :position {:lat 42.364876 :lng -71.102352}}
-              104 {:id 104 :title "Mr Orange"    :color :orange
-                   :position {:lat 42.369347 :lng -71.101107}}
-              105 {:id 105 :title "Mr Pink"      :color :pink
-                   :position {:lat 42.365257 :lng -71.087246}}
-              106 {:id 106 :title "Mr Purple"    :color :purple
-                   :position {:lat 42.361198 :lng -71.103983}}
-              107 {:id 107 :title "Mr Red"       :color :red
-                   :position {:lat 42.372083 :lng -71.082062}}
-              108 {:id 108 :title "Mr Yellow"    :color :yellow
-                   :position {:lat 42.366465 :lng -71.095194}}}}))
+  "The participants in a map indexed by map-id."
+  (atom nil))
+
+(defn mock-map
+  "A new map with MAP-ID of mocked guys."
+  [map-id]
+  (let [mock [{:title "Mr Blue" :color :blue
+               :position {:lat 42.357465 :lng -71.095194}}
+              {:title "Mr Green" :color :green
+               :position {:lat 42.364251 :lng -71.110300}}
+              {:title "Mr LightBlue" :color :lightblue
+               :position {:lat 42.364876 :lng -71.102352}}
+              {:title "Mr Orange" :color :orange
+               :position {:lat 42.369347 :lng -71.101107}}
+              {:title "Mr Pink" :color :pink
+               :position {:lat 42.365257 :lng -71.087246}}
+              {:title "Mr Purple" :color :purple
+               :position {:lat 42.361198 :lng -71.103983}}
+              {:title "Mr Red" :color :red
+               :position {:lat 42.372083 :lng -71.082062}}
+              {:title "Mr Yellow" :color :yellow
+               :position {:lat 42.366465 :lng -71.095194}}]
+        result (into {} (for [guy mock :let [id (get-next-id)]]
+                          [id (assoc guy :id id)]))]
+    (swap! the-maps assoc map-id result)
+    result))
 
 (def marker-icon-colors
   "The colors X available for map marker (x.png and x-dot.png) icons."
@@ -54,6 +63,7 @@
 (defn update-map-guy
   "Update guy in map with MAP-ID."
   [map-id guy]
+  (when (not (get @the-maps map-id)) (mock-map map-id))
   (let [guy-id (or (:id guy) (get-next-id))
         color (get-guy-color-for-map map-id guy-id)
         title (or (:title guy) (str "Mr " (s/capitalize (name color))))
@@ -62,9 +72,8 @@
                  :title title
                  :color color
                  :position position}]
-    (let [state (swap! the-maps
-                       (fn [state]
-                         (update-in state [map-id] assoc guy-id new-guy)))]
+    (let [state (swap! the-maps update-in [map-id] assoc guy-id new-guy)]
+      (println [:update-map-guy :state state])
       (get-in state [map-id guy-id]))))
 
 (defn wrap-index-html-response
@@ -105,7 +114,7 @@
   "A URI looks like this: /update/MAP-ID/ with the user's data in the POST."
   "Example: /update/909/"
   "POST" {:id 105 :title "Abe" :position {:lat 42.365257 :lng -71.087246}}
-  "If there is no MAP-ID or if the MAP-ID is not found, make a new map."
+  "If the MAP-ID is 0 or if the MAP-ID is not found, make a new map."
   "Update" the-maps "with the user's new location and name."
   "If no" :id "entry in user's update info, allocate a color to the user,"
   "and add the user's information to the map for MAP-ID."
@@ -139,27 +148,22 @@
                 {:status 200
                  :cookies {(str map-id) {:max-age week :path uri :value value}}
                  :body (pr-str {:map-id map-id :you you :all all})}))]
-      (cond (and map-id (= :post (:request-method request)))
-            (let [guy (edn/read-string (:body request))
-                  you (update-map-guy map-id guy)]
-              (succeed map-id you))
-            map-id
-            (if-let [cv (get-in request [:cookies :value])]
-              (let [you (select-keys cv [:id :title :color])
-                    you (update-map-guy map-id you)]
-                (succeed map-id you))
-              fail)
-            :else fail))))
+      (cond
 
-[:response
- {:cookies
-  {"13"
-   {:path "/update/0/",
-    :value {:color :blue, :title "Mr Pink", :id 105},
-    :max-age 0}},
-  :status 200,
-  :body
-  "{:map-id 13, :you {:id 105, :title \"Mr Pink\", :color :blue, :position {:lat 42.3665582, :lng -71.0912586}}, :all #{{:id 105, :title \"Mr Pink\", :color :blue, :position {:lat 42.3665582, :lng -71.0912586}}}}"}]
+        (and map-id (= :post (:request-method request)))
+        (let [guy (edn/read-string (:body request))
+              you (update-map-guy map-id guy)]
+          (succeed map-id you))
+
+        map-id
+        (if-let [cv (get-in request [:cookies :value])]
+          (let [you (select-keys cv [:id :title :color])
+                you (update-map-guy map-id you)]
+            (succeed map-id you))
+          fail)
+
+        :else
+        fail))))
 
 (def moot-app
   "The server callback entry point."
