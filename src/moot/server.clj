@@ -1,5 +1,6 @@
 (ns moot.server
-  (:import [java.io InputStreamReader PushbackReader])
+  (:import [java.io InputStreamReader PushbackReader]
+           [java.util Date])
   (:require [clojure.string :as s]
             [clojure.tools.reader.edn :as edn]
             [ring.middleware.content-type :refer [wrap-content-type]]
@@ -16,6 +17,23 @@
 
 (def the-next-id (atom 0))
 (defn get-next-id [] (swap! the-next-id inc))
+
+(comment
+  "In operation @state is a map of map-id to the representation of a map."
+  "Each map representation includes a :used timestamp and :all,"
+  "where :all is a map of guy-id to guy state."
+  {11 {:used 1426283563469,
+       :all {9 {:id 20, :title "Mr Blue", :color :blue,
+                 :position {:lat 42.366223399999996, :lng -71.0912799}},
+             1 {:id 1, :color :blue, :title "Mr Blue",
+                :position {:lat 42.357465, :lng -71.095194}},
+             2 {:id 2, :color :green, :title "Mr Green",
+                :position {:lat 42.364251, :lng -71.1103}}}}
+   13 {:used 1426283923384,
+       :all {5 {:id 5, :color :orange, :title "Mr Orange",
+                :position {:lat 42.369347, :lng -71.101107}},
+             6 {:id 6, :color :pink, :title "Mr Pink",
+                :position {:lat 42.365257, :lng -71.087246}}}}})
 
 (def state
   "The participants in a map indexed by map-id."
@@ -40,10 +58,9 @@
                :position {:lat 42.372083 :lng -71.082062}}
               {:title "Mr Yellow" :color :yellow
                :position {:lat 42.366465 :lng -71.095194}}]
-        result (into {} (for [guy mock :let [id (get-next-id)]]
-                          [id (assoc guy :id id)]))]
-    (swap! state assoc map-id result)
-    result))
+        all (into {} (for [guy mock :let [id (get-next-id)]]
+                       [id (assoc guy :id id)]))]
+    (swap! state assoc map-id {:all all})))
 
 (def marker-icon-colors
   "The colors X available for map marker (x.png and x-dot.png) icons."
@@ -68,13 +85,13 @@
         color (get-guy-color-for-map map-id guy-id)
         title (or (:title guy) (str "Mr " (s/capitalize (name color))))
         position (:position guy)
-        new-guy {:id guy-id
-                 :title title
-                 :color color
-                 :position position}]
-    (let [state (swap! state update-in [map-id] assoc guy-id new-guy)]
-      (println [:update-map-guy :state state])
-      (get-in state [map-id guy-id]))))
+        new-guy {:id guy-id :title title :color color :position position}]
+    (let [now (.getTime (java.util.Date.))
+          state (swap! state
+                       #(-> %
+                            (update-in [map-id] assoc :used now)
+                            (update-in [map-id :all] assoc guy-id new-guy)))]
+      (get-in state [map-id :all guy-id]))))
 
 (defn wrap-index-html-response
   "Establish content-type when request is implicitly for index.html."
@@ -144,9 +161,11 @@
     (letfn [(succeed [map-id you]
               (let [week (* 7 24 60 60)
                     value (select-keys you [:id :title :color])
-                    all (get @state map-id)]
+                    all (get-in @state [map-id :all])]
                 {:status 200
-                 :cookies {(str map-id) {:max-age week :path uri :value value}}
+                 :cookies {(str map-id) {:max-age week
+                                         :path uri
+                                         :value value}}
                  :body (pr-str {:map-id map-id :you you :all all})}))]
       (cond
 
@@ -178,4 +197,3 @@
       wrap-cookies))
 
 (println [:RELOADED 'server])
-
