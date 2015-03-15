@@ -24,7 +24,7 @@
   "where :all is a map of guy-id to guy state."
   {11 {:used 1426283563469,
        :all {9 {:id 20, :title "Mr Blue", :color :blue,
-                 :position {:lat 42.366223399999996, :lng -71.0912799}},
+                :position {:lat 42.366223399999996, :lng -71.0912799}},
              1 {:id 1, :color :blue, :title "Mr Blue",
                 :position {:lat 42.357465, :lng -71.095194}},
              2 {:id 2, :color :green, :title "Mr Green",
@@ -38,6 +38,11 @@
 (def state
   "The participants in a map indexed by map-id."
   (atom nil))
+
+(defn garbage-collect-maps
+  "Discard all but the 9 most recently used maps."
+  [state]
+  (into {} (take 9 (sort-by (comp > :used) state))))
 
 (defn mock-map
   "A new map with MAP-ID of mocked guys."
@@ -89,6 +94,7 @@
     (let [now (.getTime (java.util.Date.))
           state (swap! state
                        #(-> %
+                            (garbage-collect-maps)
                             (update-in [map-id] assoc :used now)
                             (update-in [map-id :all] assoc guy-id new-guy)))]
       (get-in state [map-id :all guy-id]))))
@@ -168,21 +174,17 @@
                                          :value value}}
                  :body (pr-str {:map-id map-id :you you :all all})}))]
       (cond
-
         (and map-id (= :post (:request-method request)))
         (let [guy (edn/read-string (:body request))
               you (update-map-guy map-id guy)]
           (succeed map-id you))
-
         map-id
         (if-let [cv (get-in request [:cookies :value])]
           (let [you (select-keys cv [:id :title :color])
                 you (update-map-guy map-id you)]
             (succeed map-id you))
           fail)
-
-        :else
-        fail))))
+        :else fail))))
 
 (def moot-app
   "The server callback entry point."
