@@ -1,8 +1,10 @@
 (ns moot.server
+  (:gen-class)
   (:import [java.io InputStreamReader PushbackReader]
            [java.util Date])
   (:require [clojure.string :as s]
             [clojure.tools.reader.edn :as edn]
+            [ring.adapter.jetty :refer [run-jetty]]
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.cookies :refer [wrap-cookies]]
             [ring.middleware.file :refer [wrap-file]]
@@ -39,7 +41,7 @@
   "The participants in a map indexed by map-id."
   (atom nil))
 
-(defn garbage-collect-maps
+(defn discard-old-maps
   "Discard all but the 9 most recently used maps."
   [state]
   (into {} (take 9 (sort-by (comp > :used) state))))
@@ -94,7 +96,7 @@
     (let [now (.getTime (java.util.Date.))
           state (swap! state
                        #(-> %
-                            (garbage-collect-maps)
+                            (discard-old-maps)
                             (update-in [map-id] assoc :used now)
                             (update-in [map-id :all] assoc guy-id new-guy)))]
       (get-in state [map-id :all guy-id]))))
@@ -197,5 +199,9 @@
       wrap-not-modified
       wrap-params
       wrap-cookies))
+
+(defn -main [& [port]]
+  (let [port (Integer. (or port 8000))]
+    (run-jetty #'moot-app {:port port :join? false})))
 
 (println [:RELOADED 'server])
