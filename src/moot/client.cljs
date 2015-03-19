@@ -313,7 +313,7 @@
   []
   (html {}
         (head {}
-              (link {:rel :icon :type "image/png" :href "moot.png"})
+              (link {:rel :icon :type "image/x-icon" :href "favicon.ico"})
               ((element-for-tag :meta) {:charset :utf-8})
               (title {} "Where is everyone?")
               (style-webkit-refresh-workaround)

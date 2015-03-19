@@ -17,11 +17,11 @@
 (set-env!
  :source-paths   #{"src"}
  :resource-paths #{"www"}
- :dependencies '[[org.clojure/clojure "1.6.0"]
+ :dependencies '[[adzerk/boot-beanstalk "0.2.3"]
                  [adzerk/boot-cljs "0.0-2814-1"]
                  [adzerk/boot-cljs-repl "0.1.9"]
                  [adzerk/boot-reload "0.2.4"]
-                 [adzerk/boot-beanstalk "0.2.3"]
+                 [org.clojure/clojure "1.6.0"]
                  [pandeiro/boot-http "0.6.3-SNAPSHOT"]
                  [ring "1.3.2"]
                  [tailrecursion/boot.core "2.5.1"]]
@@ -38,14 +38,15 @@
                    keywords)))
   (get-env))
 
-(import-environment-variables :google-api-key)
+#_(import-environment-variables :google-api-key
+                                :moot-aws-access-key
+                                :moot-aws-secret-key)
 
-(require
- '[adzerk.boot-cljs :refer [cljs]]
- '[adzerk.boot-cljs-repl :refer [cljs-repl start-repl]]
- '[adzerk.boot-reload :refer [reload]]
- '[adzerk.boot-beanstalk :refer [beanstalk dockerrun]]
- '[pandeiro.boot-http :as http])
+(require '[adzerk.boot-beanstalk :refer [beanstalk dockerrun]]
+         '[adzerk.boot-cljs :refer [cljs]]
+         '[adzerk.boot-cljs-repl :refer [cljs-repl start-repl]]
+         '[adzerk.boot-reload :refer [reload]]
+         '[pandeiro.boot-http :as http])
 
 (task-options!
  web {:serve 'moot.server/moot-app}
@@ -84,14 +85,16 @@
   "Deploy application war file to AWS EB environment."
   []
   (task-options!
-   beanstalk {:stack-name "64bit Amazon Linux 2014.03 v1.0.7 running Tomcat 7 Java 7"})
+   beanstalk
+   {:stack-name "Tomcat 8 Java 8 on 64bit Amazon Linux 2014.09 v1.2.0"})
   identity)
 
 (deftask deploy-docker
   "Deploy application docker zip file to AWS EB environment."
   []
   (task-options!
-   beanstalk {:stack-name "64bit Amazon Linux 2014.09 v1.0.9 running Docker 1.2.0"})
+   beanstalk
+   {:stack-name "Docker 1.3.3 on 64bit Amazon Linux 2014.09 v1.2.0."})
   identity)
 
 (deftask oops
