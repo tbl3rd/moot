@@ -49,13 +49,16 @@
          '[pandeiro.boot-http :as http])
 
 (task-options!
+ war {:file "moot.war"}
  web {:serve 'moot.server/moot-app}
- beanstalk {:name "moot"
-            :version "0.1.0-SNAPSHOT"
-            :description "a meeting of gentlemen"
-            :access-key (System/getenv "MOOT_AWS_ACCESS_KEY")
+ beanstalk {:access-key (System/getenv "MOOT_AWS_ACCESS_KEY")
             :secret-key (System/getenv "MOOT_AWS_SECRET_KEY")
-            :beanstalk-envs [{:name "moot" :cname-prefix "moot"}]})
+            :description "a meeting of gentlemen"
+            :file "target/project.war"
+            :env "moot"
+            :name "moot"
+            :beanstalk-envs [{:name "moot" :cname-prefix "moot"}]
+            :version "0.1.0-SNAPSHOT"})
 
 (deftask debug
   "Debug the moot client and server."
@@ -86,8 +89,9 @@
   []
   (task-options!
    beanstalk
-   {:stack-name "Tomcat 8 Java 8 on 64bit Amazon Linux 2014.09 v1.2.0"})
-  identity)
+   {:stack-name "Tomcat 8 Java 8 on 64bit Amazon Linux 2014.09 v1.2.0"
+    :deploy true :env "moot"})
+  (beanstalk))
 
 (deftask deploy-docker
   "Deploy application docker zip file to AWS EB environment."
