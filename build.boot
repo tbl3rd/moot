@@ -1,3 +1,5 @@
+;;234567890123456789012345678901234567890123456789012345678901234567890123456789
+;;
 (comment
   "Execute the following elisp to start a Clojure boot REPL."
   "This works around CIDER's assumption that lein is boss."
@@ -14,9 +16,12 @@
   "Accept the cider-connect defaults with: RET RET RET."
   "Start a browser repl at the cider-repl prompt with: (start-repl)")
 
+;; See: https://github.com/boot-clj/boot/wiki/Boot-Environment
+;;
 (set-env!
- :source-paths   #{"src"}
- :resource-paths #{"www"}
+ :source-paths #{"src"}
+ :resource-paths #{"src"}
+ :target-path "target"
  :dependencies '[[adzerk/boot-beanstalk "0.2.3"]
                  [adzerk/boot-cljs "0.0-2814-1"]
                  [adzerk/boot-cljs-repl "0.1.9"]
@@ -54,7 +59,7 @@
  beanstalk {:access-key (System/getenv "MOOT_AWS_ACCESS_KEY")
             :secret-key (System/getenv "MOOT_AWS_SECRET_KEY")
             :description "a meeting of gentlemen"
-            :file "target/project.war"
+            :file "moot.war"
             :env "moot"
             :name "moot"
             :beanstalk-envs [{:name "moot" :cname-prefix "moot"}]
@@ -64,20 +69,24 @@
   "Debug the moot client and server."
   []
   (comp
-   (http/serve :handler 'moot.server/moot-app :reload true)
+   (http/serve :handler 'moot.server/moot-debug :reload true)
    (watch :verbose true)
    (cljs-repl)
    (speak)
    (reload)
    (cljs :optimizations :none
-         :output-to "main.js"
+         :output-to "moot.js"
          :source-map true
          :unified-mode true)))
 
 (deftask build-tomcat
   "Build my application uberwar file."
   []
-  (comp (web) (uber) (war)))
+  (comp #_(cljs :optimizations :none
+                :output-to "moot.js"
+                :source-map true
+                :unified-mode true)
+        (web) (uber) (war)))
 
 (deftask build-docker
   "Build my application docker zip file."

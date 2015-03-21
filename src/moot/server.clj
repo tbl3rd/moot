@@ -188,10 +188,29 @@
           fail)
         :else fail))))
 
-(def moot-app
-  "The server callback entry point."
+(def war? true)
+(defn wrap-file-or-resource
+  [handler]
+  (if war?
+    (wrap-resource handler)
+    (wrap-file handler "target" {:index-files? true})))
+
+#_(def moot-debug
+  "The server callback entry point when debugging locally."
   (-> handle-request
       (wrap-file "target" {:index-files? true})
+      wrap-dump-request-response
+      wrap-index-html-response
+      wrap-request-body-edn
+      wrap-content-type
+      wrap-not-modified
+      wrap-params
+      wrap-cookies))
+
+(def moot-app
+  "The server callback entry point when deployed."
+  (-> handle-request
+      (wrap-resource ".")
       wrap-dump-request-response
       wrap-index-html-response
       wrap-request-body-edn
