@@ -195,7 +195,7 @@
     (wrap-resource handler)
     (wrap-file handler "target" {:index-files? true})))
 
-#_(def moot-debug
+(def moot-debug
   "The server callback entry point when debugging locally."
   (-> handle-request
       (wrap-file "target" {:index-files? true})
@@ -211,7 +211,6 @@
   "The server callback entry point when deployed."
   (-> handle-request
       (wrap-resource ".")
-      wrap-dump-request-response
       wrap-index-html-response
       wrap-request-body-edn
       wrap-content-type
