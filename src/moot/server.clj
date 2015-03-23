@@ -14,6 +14,7 @@
             [ring.middleware.reload :refer [wrap-reload]]
             [ring.middleware.resource :refer [wrap-resource]]
             [ring.util.mime-type :as mime-type]
+            [ring.util.request :as request]
             [ring.util.response :as response]
             [tailrecursion.boot.core :as boot]))
 
@@ -102,28 +103,29 @@
       (get-in state [map-id :all guy-id]))))
 
 (defn wrap-index-html-response
-  "Establish content-type when request is implicitly for index.html."
+  "Respond when request is implicitly for index.html."
   [handler]
   (fn [request]
-    (let [response (handler request)]
-      (if (= "/" (:uri request))
-        (response/content-type response "text/html")
-        response))))
+    (if (= "/" (:uri request))
+      (do (println [:wrap-index-html-response :request request])
+          (-> (response/resource-response "index.html")
+              (response/content-type "text/html")
+              (response/status 200)))
+      (handler request))))
 
 (defn wrap-request-body-edn
-  "Replace :body #HttpInput with a readable string of EDN."
+  "Replace :body #HttpInput in handler with EDN when that is content-type."
   [handler]
-  (fn [request]
-    (if (= "application/edn" (get-in request [:headers "content-type"]))
-      (response/content-type
-       (handler (assoc request
-                       :body (-> request
-                                 :body
-                                 java.io.InputStreamReader.
-                                 java.io.PushbackReader.
-                                 slurp)))
-       "application/edn")
-      (handler request))))
+  (let [edn "application/edn"]
+    (fn [request]
+      (if (= edn (request/content-type request))
+        (response/content-type
+         (handler (assoc request
+                         :body (-> request
+                                   request/body-string
+                                   edn/read-string)))
+         edn)
+        (handler request)))))
 
 (defn wrap-dump-request-response
   "Dump request and response maps."
@@ -160,45 +162,41 @@
        (let [id (edn/read-string map-id)]
          (if (and id (> id 0)) id))))))
 
+(defn succeed
+  "A success response to PATH with MAP-ID and YOU encoded in edn."
+  [path map-id you]
+  (let [week (* 7 24 60 60)
+        value (select-keys you [:id :title :color])
+        all (get-in @state [map-id :all])]
+    (-> {:body (pr-str {:map-id map-id :you you :all all})}
+        (response/status 200)
+        (response/content-type "application/edn")
+        (response/set-cookie (str map-id) value {:max-age week :path path}))))
+
 (defn handle-request
   "Return a response for REQUEST."
   [request]
+  (println [:handle-request :request request])
   (let [fail {:status 400 :body "Bad map request."}
         uri (:uri request)
         map-id (or (map-id-from-uri uri) (get-next-id))]
-    (letfn [(succeed [map-id you]
-              (let [week (* 7 24 60 60)
-                    value (select-keys you [:id :title :color])
-                    all (get-in @state [map-id :all])]
-                {:status 200
-                 :cookies {(str map-id) {:max-age week
-                                         :path uri
-                                         :value value}}
-                 :body (pr-str {:map-id map-id :you you :all all})}))]
-      (cond
-        (and map-id (= :post (:request-method request)))
-        (let [guy (edn/read-string (:body request))
-              you (update-map-guy map-id guy)]
-          (succeed map-id you))
-        map-id
-        (if-let [cv (get-in request [:cookies :value])]
-          (let [you (select-keys cv [:id :title :color])
-                you (update-map-guy map-id you)]
-            (succeed map-id you))
-          fail)
-        :else fail))))
+    (cond
+      (and map-id (= :post (:request-method request)))
+      (let [guy (doto (:body request) #(println [:dump %]))
+            you (update-map-guy map-id guy)]
+        (succeed uri map-id you))
+      map-id
+      (if-let [cv (get-in request [:cookies :value])]
+        (let [you (select-keys cv [:id :title :color])
+              you (update-map-guy map-id you)]
+          (succeed uri map-id you))
+        (succeed uri map-id (update-map-guy map-id {})))
+      :else fail)))
 
-(def war? true)
-(defn wrap-file-or-resource
-  [handler]
-  (if war?
-    (wrap-resource handler)
-    (wrap-file handler "target" {:index-files? true})))
-
-(def moot-debug
-  "The server callback entry point when debugging locally."
+(def moot-app
+  "The server callback entry point when deployed."
   (-> handle-request
-      (wrap-file "target" {:index-files? true})
+      (wrap-resource "/")
       wrap-dump-request-response
       wrap-index-html-response
       wrap-request-body-edn
@@ -207,16 +205,7 @@
       wrap-params
       wrap-cookies))
 
-(def moot-app
-  "The server callback entry point when deployed."
-  (-> handle-request
-      (wrap-resource ".")
-      wrap-index-html-response
-      wrap-request-body-edn
-      wrap-content-type
-      wrap-not-modified
-      wrap-params
-      wrap-cookies))
+(def moot-debug moot-app)
 
 (defn -main [& [port]]
   (let [port (Integer. (or port 8000))]

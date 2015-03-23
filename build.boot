@@ -19,7 +19,6 @@
 ;; See: https://github.com/boot-clj/boot/wiki/Boot-Environment
 ;;
 (set-env!
- :source-paths #{"src"}
  :resource-paths #{"src"}
  :target-path "target"
  :dependencies '[[adzerk/boot-beanstalk "0.2.3"]
@@ -46,32 +45,32 @@
             :secret-key (System/getenv "MOOT_AWS_SECRET_KEY")
             :description "a meeting of gentlemen"
             :file "moot.war"
-            :env "moot"
-            :name "moot"
-            :beanstalk-envs [{:name "moot" :cname-prefix "moot"}]
+            :env "moot-env"
+            :name "moot-name"
+            :beanstalk-envs [{:name "moot-name" :cname-prefix "moot-cname"}]
             :version "0.1.0-SNAPSHOT"})
 
-(deftask debug-moot
+(deftask debug
   "Debug the moot client and server."
   []
   (comp
-   (http/serve :handler 'moot.server/moot-debug :reload true)
+   (http/serve :handler 'moot.server/moot-app :reload true)
    (watch :verbose true)
+   (speak)
    (cljs-repl)
    (reload)
    (cljs :optimizations :none
          :output-to "moot.js"
          :source-map true
-         :unified-mode true)
-   (speak)))
+         :unified-mode true)))
 
-(deftask build-moot-tomcat
-  "Build my application uberwar file."
+(deftask build
+  "Build the moot application uberwar file for Apache Tomcat."
   []
-  (comp (web) (uber) (war)))
+  (comp (speak) (web) (uber) (war)))
 
-(deftask deploy-moot-tomcat
-  "Deploy application war file to AWS EB environment."
+(deftask deploy
+  "Deploy moot war file to Tomcat in AWS ElasticBeanstalk environment."
   []
   (task-options!
    beanstalk
