@@ -252,14 +252,6 @@
 (defn update-position
   "Call handler with the current position."
   [handler]
-  (try (-> js/navigator
-           (aget "geolocation")
-           (.getCurrentPosition handler js/alert))
-       (catch :default x (log x))))
-
-(defn update-position
-  "Call handler with the current position."
-  [handler]
   (try
     (.getCurrentPosition (aget js/navigator "geolocation") handler js/alert)
     (catch :default x (log x))))

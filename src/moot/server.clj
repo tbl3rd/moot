@@ -116,16 +116,13 @@
 (defn wrap-request-body-edn
   "Replace :body #HttpInput in handler with EDN when that is content-type."
   [handler]
-  (let [edn "application/edn"]
-    (fn [request]
-      (if (= edn (request/content-type request))
-        (response/content-type
-         (handler (assoc request
-                         :body (-> request
-                                   request/body-string
-                                   edn/read-string)))
-         edn)
-        (handler request)))))
+  (fn [request]
+    (if (= "application/edn" (request/content-type request))
+      (handler (assoc request
+                      :body (-> request
+                                request/body-string
+                                edn/read-string)))
+      (handler request))))
 
 (defn wrap-dump-request-response
   "Dump request and response maps."
@@ -204,8 +201,6 @@
       wrap-not-modified
       wrap-params
       wrap-cookies))
-
-(def moot-debug moot-app)
 
 (defn -main [& [port]]
   (let [port (Integer. (or port 8000))]

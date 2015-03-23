@@ -26,6 +26,7 @@
                  [adzerk/boot-cljs-repl "0.1.9"]
                  [adzerk/boot-reload "0.2.4"]
                  [org.clojure/clojure "1.6.0"]
+                 [org.clojure/clojurescript "0.0-3126"]
                  [pandeiro/boot-http "0.6.3-SNAPSHOT"]
                  [ring "1.3.2"]
                  [tailrecursion/boot.core "2.5.1"]]
@@ -35,7 +36,7 @@
          '[adzerk.boot-cljs :refer [cljs]]
          '[adzerk.boot-cljs-repl :refer [cljs-repl start-repl]]
          '[adzerk.boot-reload :refer [reload]]
-         '[moot.server :refer [moot-app moot-debug]]
+         '[moot.server :refer [moot-app]]
          '[pandeiro.boot-http :as http])
 
 (task-options!
@@ -67,7 +68,14 @@
 (deftask build
   "Build the moot application uberwar file for Apache Tomcat."
   []
-  (comp (speak) (web) (uber) (war)))
+  (comp (speak)
+        (cljs :optimizations :none
+              :output-to "moot.js"
+              :source-map true
+              :unified-mode true)
+        (web)
+        (uber)
+        (war)))
 
 (deftask deploy
   "Deploy moot war file to Tomcat in AWS ElasticBeanstalk environment."
