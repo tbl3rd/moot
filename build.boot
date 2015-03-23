@@ -40,16 +40,18 @@
          '[pandeiro.boot-http :as http])
 
 (task-options!
- war {:file "moot.war"}
- web {:serve 'moot.server/moot-app}
  beanstalk {:access-key (System/getenv "MOOT_AWS_ACCESS_KEY")
             :secret-key (System/getenv "MOOT_AWS_SECRET_KEY")
+            :version "0.1.0-SNAPSHOT"
+            :beanstalk-envs [{:name "moot-env" :cname-prefix "moot"}]
+            :deploy true
             :description "a meeting of gentlemen"
             :file "moot.war"
             :env "moot-env"
-            :name "moot-name"
-            :beanstalk-envs [{:name "moot-name" :cname-prefix "moot-cname"}]
-            :version "0.1.0-SNAPSHOT"})
+            :name "moot-env"}
+ cljs {:output-to "moot.js"}
+ war {:file "moot.war"}
+ web {:serve 'moot.server/moot-app})
 
 (deftask debug
   "Debug the moot client and server."
@@ -61,7 +63,6 @@
    (cljs-repl)
    (reload)
    (cljs :optimizations :none
-         :output-to "moot.js"
          :source-map true
          :unified-mode true)))
 
@@ -69,10 +70,7 @@
   "Build the moot application uberwar file for Apache Tomcat."
   []
   (comp (speak)
-        (cljs :optimizations :none
-              :output-to "moot.js"
-              :source-map true
-              :unified-mode true)
+        (cljs :optimizations :advanced)
         (web)
         (uber)
         (war)))
@@ -80,8 +78,5 @@
 (deftask deploy
   "Deploy moot war file to Tomcat in AWS ElasticBeanstalk environment."
   []
-  (task-options!
-   beanstalk
-   {:stack-name "Tomcat 8 Java 8 on 64bit Amazon Linux 2014.09 v1.2.0"
-    :deploy true :env "moot"})
   (beanstalk))
+
