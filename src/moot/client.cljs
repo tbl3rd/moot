@@ -53,11 +53,6 @@
         dotted (map #(keyword (str (name %) "-dot")) colors)]
     (reduce conj colors dotted)))
 
-(defn element-by-id
-  "Nil or the element with id."
-  ([id]
-   (.getElementById js/document (name id))))
-
 (defn new-goog-latlng
   "A LatLng from lat and lng coordinates or position map."
   ([lat lng]
@@ -284,7 +279,7 @@
 (defn new-goog-map
   "A new Google map."
   []
-  (let [result (or (element-by-id :the-map) (div {:id :the-map}))
+  (let [result (or (.getElementById js/document "the-map") (div {:id :the-map}))
         bottom-right {:position google.maps.ControlPosition.BOTTOM_RIGHT}]
     (letfn [(handler [position]
               (let [coords (aget position "coords")

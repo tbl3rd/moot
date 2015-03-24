@@ -43,10 +43,12 @@
  beanstalk {:access-key (System/getenv "MOOT_AWS_ACCESS_KEY")
             :secret-key (System/getenv "MOOT_AWS_SECRET_KEY")
             :version "0.1.0-SNAPSHOT"
-            :beanstalk-envs [{:name "moot-env" :cname-prefix "moot"}]
+            :beanstalk-envs [{:cname-prefix "moot"
+                              :id "e-4kqjyubtvz"
+                              :name "moot-env"}]
             :deploy true
             :description "a meeting of gentlemen"
-            :file "moot.war"
+            :file "target/moot.war"
             :env "moot-env"
             :name "moot-env"}
  cljs {:output-to "moot.js"}
@@ -70,7 +72,9 @@
   "Build the moot application uberwar file for Apache Tomcat."
   []
   (comp (speak)
-        (cljs :optimizations :advanced)
+        (cljs :optimizations :none
+              :source-map true
+              :unified-mode true)
         (web)
         (uber)
         (war)))
@@ -78,5 +82,5 @@
 (deftask deploy
   "Deploy moot war file to Tomcat in AWS ElasticBeanstalk environment."
   []
-  (beanstalk))
-
+  (comp (speak)
+        (beanstalk)))

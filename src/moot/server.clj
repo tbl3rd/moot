@@ -88,7 +88,7 @@
 (defn update-map-guy
   "Update guy in map with MAP-ID."
   [map-id guy]
-  (when (not (get @state map-id)) (mock-map map-id))
+  #_(when (not (get @state map-id)) (mock-map map-id))
   (let [guy-id (or (:id guy) (get-next-id))
         color (get-guy-color-for-map map-id guy-id)
         title (or (:title guy) (str "Mr " (s/capitalize (name color))))
@@ -107,10 +107,9 @@
   [handler]
   (fn [request]
     (if (= "/" (:uri request))
-      (do (println [:wrap-index-html-response :request request])
-          (-> (response/resource-response "index.html")
-              (response/content-type "text/html")
-              (response/status 200)))
+      (-> (response/resource-response "index.html")
+          (response/content-type "text/html")
+          (response/status 200))
       (handler request))))
 
 (defn wrap-request-body-edn
@@ -128,7 +127,7 @@
   "Dump request and response maps."
   [handler]
   (fn [request]
-    (let [update? (.startsWith (:uri request) "/update/")]
+    (let [update? (or true (.startsWith (:uri request) "/update/"))]
       (if update? (println (pr-str [:request request])))
       (let [response (handler request)]
         (if update? (println (pr-str [:response response])))
@@ -156,46 +155,82 @@
         [update map-id] (re-find re (s/lower-case uri))]
     (do-or-nil
      (if (and update map-id)
-       (let [id (edn/read-string map-id)]
-         (if (and id (> id 0)) id))))))
+       (edn/read-string map-id)))))
 
-(defn succeed
-  "A success response to PATH with MAP-ID and YOU encoded in edn."
-  [path map-id you]
+(defn created
+  "A success response to URL with MAP-ID and YOU encoded in edn."
+  [url uri map-id you]
   (let [week (* 7 24 60 60)
+        value (select-keys you [:id :title :color])
+        all (get-in @state [map-id :all])
+        body (pr-str {:map-id map-id :you you :all all})]
+    (-> (response/created url body)
+        (response/content-type "application/edn")
+        (response/set-cookie (str map-id) value {:max-age week :path uri}))))
+
+(defn response-url
+  "The URL for the response to REQUEST for MAP-ID."
+  [map-id request]
+  (let [scheme (-> request :scheme name)
+        host (get-in request [:headers "host"])
+        response-uri (str "/update/" map-id "/")]
+    (str (str scheme "://" host) response-uri)))
+
+(defn respond-first
+  "Respond to a first GET request."
+  [request]
+  (println [:respond-first :request request])
+  (let [map-id (get-next-id)
+        body (:body (response/resource-response "index.html"))]
+    (-> (response/created (response-url map-id request) body)
+        (response/content-type "text/html"))))
+
+(defn respond-post
+  "Respond to an update POST request."
+  [request]
+  (let [week (* 7 24 60 60)
+        map-id (map-id-from-uri (:uri request))
+        map-id (or map-id (get-next-id))
+        url (response-url map-id request)
+        body (:body request)
+        you (update-map-guy map-id body)
         value (select-keys you [:id :title :color])
         all (get-in @state [map-id :all])]
     (-> {:body (pr-str {:map-id map-id :you you :all all})}
         (response/status 200)
         (response/content-type "application/edn")
-        (response/set-cookie (str map-id) value {:max-age week :path path}))))
+        (response/set-cookie (str map-id) value {:max-age week :path url}))))
+
+(defn respond-get
+  "Respond to a GET request."
+  [request]
+  (let [request-uri (:uri request)]
+    (if-let [map-id (map-id-from-uri request-uri)]
+      (let [week (* 7 24 60 60)
+            url (response-url map-id request)
+            options {:max-age week :path url}
+            cookie (get-in request [:cookies :value])
+            you (select-keys cookie [:id :title :color])
+            you (update-map-guy map-id you)
+            all (get-in @state [map-id :all])
+            body (pr-str {:map-id map-id :you you :all all})]
+        (-> (response/created (url map-id request) body)
+            (response/content-type "application/edn")
+            (response/set-cookie (str map-id) you options)))
+      (respond-first request))))
 
 (defn handle-request
   "Return a response for REQUEST."
   [request]
-  (println [:handle-request :request request])
-  (let [fail {:status 400 :body "Bad map request."}
-        uri (:uri request)
-        map-id (or (map-id-from-uri uri) (get-next-id))]
-    (cond
-      (and map-id (= :post (:request-method request)))
-      (let [guy (doto (:body request) #(println [:dump %]))
-            you (update-map-guy map-id guy)]
-        (succeed uri map-id you))
-      map-id
-      (if-let [cv (get-in request [:cookies :value])]
-        (let [you (select-keys cv [:id :title :color])
-              you (update-map-guy map-id you)]
-          (succeed uri map-id you))
-        (succeed uri map-id (update-map-guy map-id {})))
-      :else fail)))
+  (if (= :post (:request-method request))
+    (respond-post request)
+    (respond-get request)))
 
 (def moot-app
   "The server callback entry point when deployed."
   (-> handle-request
       (wrap-resource "/")
       wrap-dump-request-response
-      wrap-index-html-response
       wrap-request-body-edn
       wrap-content-type
       wrap-not-modified
