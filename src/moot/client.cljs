@@ -219,6 +219,30 @@
     (.send connection uri "POST" request
            (clj->js {:content-type "application/edn"}))))
 
+(defn ensure-markers
+  "A :markers map containing old markers in STATE
+  and all new markers from RESPONSE."
+  [state response]
+  (reduce-kv
+   (fn [result id guy]
+     (assoc result id
+            (or (get-in state [:markers id])
+                (new-mark-for-guy guy))))
+   {} (:all response)))
+
+(defn move-markers
+  "Move markers in STATE according to positions in RESPONSE."
+  [state response]
+  (let [alive (keys (:all response))
+        markers (ensure-markers state response)]
+    (doseq [id alive]
+      (.setPosition
+       (get markers id)
+       (clj->js (get-in response [:all id :position]))))
+    (doseq [id (remove (set alive) (keys (:all state)))]
+      (.setMap (get-in state [:markers id]) nil))
+    (assoc (merge state response) :markers markers)))
+
 (defn update-markers
   "Use response to update markers.  Add new markers as necessary,
   then update position of live markers, and null out the map in the
@@ -226,29 +250,12 @@
   [response]
   (when response
     (log [:update-markers :response response])
-    (letfn [(ensure-markers [old]
-              (reduce-kv
-               (fn [result id guy]
-                 (assoc result id
-                        (or (get-in old [:markers id])
-                            (new-mark-for-guy guy))))
-               {} (:all response)))
-            (handle [old]
-              (let [alive (keys (:all response))
-                    markers (ensure-markers old)]
-                (doseq [id alive]
-                  (.setPosition
-                   (get markers id)
-                   (clj->js (get-in response [:all id :position]))))
-                (doseq [id (remove (set alive) (keys (:all old)))]
-                  (.setMap (get-in old [:markers id]) nil))
-                (assoc (merge old response) :markers markers)))]
-      (let [first-update? (nil? (:markers @state))]
-        (swap! state handle)
-        (let [map-id (:map-id response)]
-          (.replaceState js/history
-                         (js-obj) where (str "/update/" map-id "/")))
-        (when first-update? (show-all-guys) (render-you))))))
+    (let [first-update? (nil? (:markers @state))]
+      (swap! state move-markers response)
+      (let [map-id (:map-id response)]
+        (.replaceState js/history
+                       (js-obj) where (str "/update/" map-id "/")))
+      (when first-update? (show-all-guys) (render-you)))))
 
 (defn update-position
   "Call handler with the current position."
