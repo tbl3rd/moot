@@ -11,6 +11,8 @@
             [goog.net.EventType :as goog.net.EventType]
             [goog.net.XhrIo :as goog.net.XhrIo]))
 
+(def where "Where is everyone?")
+
 (defn log
   "Log msg on the console."
   [msg]
@@ -166,7 +168,7 @@
                     (button {:type :button} "Close"))
         buttons (div {:class :buttons}
                      (span {:class :guy :align :left}
-                           (doto (button {:type :button} "Where is everyone?")
+                           (doto (button {:type :button} where)
                              (goog.events/listen "click" show-all-guys)))
                      close)
         control (apply (partial div {:id :legend :class "legend"})
@@ -223,6 +225,7 @@
   dead markers."
   [response]
   (when response
+    (log [:update-markers :response response])
     (letfn [(ensure-markers [old]
               (reduce-kv
                (fn [result id guy]
@@ -242,6 +245,9 @@
                 (assoc (merge old response) :markers markers)))]
       (let [first-update? (nil? (:markers @state))]
         (swap! state handle)
+        (let [map-id (:map-id response)]
+          (.replaceState js/history
+                         (js-obj) where (str "/update/" map-id "/")))
         (when first-update? (show-all-guys) (render-you))))))
 
 (defn update-position
@@ -302,7 +308,7 @@
         (head {}
               (link {:rel :icon :type "image/x-icon" :href "favicon.ico"})
               ((element-for-tag :meta) {:charset :utf-8})
-              (title {} "Where is everyone?")
+              (title {} where)
               (style-webkit-refresh-workaround)
               (style-other-elements-on-page))
         (body {} (new-goog-map)))

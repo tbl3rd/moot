@@ -21,6 +21,19 @@
 (def the-next-id (atom 0))
 (defn get-next-id [] (swap! the-next-id inc))
 
+(def index-html
+  "The bootstrap HTML for this application."
+  (s/join "\n"
+          ["<!DOCTYPE html>"
+           "<html>"
+           " <head>"
+           "  <script type=\"text/javascript\" src=\"./moot.js\"></script>"
+           "  <script type=\"text/javascript\""
+           "          src=\"https://maps.googleapis.com/maps/api/js?v=3.3\">"
+           "  </script>"
+           " </head>"
+           "</html>"]))
+
 (comment
   "In operation @state is a map of map-id to the representation of a map."
   "Each map representation includes a :used timestamp and :all,"
@@ -87,20 +100,20 @@
 
 (defn update-map-guy
   "Update guy in map with MAP-ID."
-  [map-id guy]
+  [map-id {:keys [id title] :as guy}]
   #_(when (not (get @state map-id)) (mock-map map-id))
-  (let [guy-id (or (:id guy) (get-next-id))
-        color (get-guy-color-for-map map-id guy-id)
-        title (or (:title guy) (str "Mr " (s/capitalize (name color))))
+  (let [id (or id (get-next-id))
+        color (get-guy-color-for-map map-id id)
+        title (or title (str "Mr " (s/capitalize (name color))))
         position (:position guy)
-        new-guy {:id guy-id :title title :color color :position position}]
+        new-guy {:id id :title title :color color :position position}]
     (let [now (.getTime (java.util.Date.))
           state (swap! state
                        #(-> %
                             (discard-old-maps)
                             (update-in [map-id] assoc :used now)
-                            (update-in [map-id :all] assoc guy-id new-guy)))]
-      (get-in state [map-id :all guy-id]))))
+                            (update-in [map-id :all] assoc id new-guy)))]
+      (get-in state [map-id :all id]))))
 
 (defn wrap-index-html-response
   "Respond when request is implicitly for index.html."
@@ -144,29 +157,28 @@
   "Result is:" {MAP-ID (get-in @state MAP-ID)})
 
 (defmacro do-or-nil
-  "Value of BODY or nil if it throws."
+  "Result of BODY or nil if it throws."
   [& body]
   `(try (do ~@body) (catch Exception x# (println x#))))
 
-(defn map-id-from-uri
-  "Return nil or the map ID parsed from and /update/ URI."
-  [uri]
+(defn map-id-from-request
+  "Return a new map ID or the map ID parsed from request."
+  [request]
   (let [re #"^/update/(.+)/$"
+        uri (:uri request)
         [update map-id] (re-find re (s/lower-case uri))]
-    (do-or-nil
-     (if (and update map-id)
-       (edn/read-string map-id)))))
+    (or (do-or-nil
+         (if (and update map-id)
+           (edn/read-string map-id)))
+        (get-next-id))))
 
 (defn created
   "A success response to URL with MAP-ID and YOU encoded in edn."
   [url uri map-id you]
-  (let [week (* 7 24 60 60)
-        value (select-keys you [:id :title :color])
-        all (get-in @state [map-id :all])
+  (let [all (get-in @state [map-id :all])
         body (pr-str {:map-id map-id :you you :all all})]
     (-> (response/created url body)
-        (response/content-type "application/edn")
-        (response/set-cookie (str map-id) value {:max-age week :path uri}))))
+        (response/content-type "application/edn"))))
 
 (defn response-url
   "The URL for the response to REQUEST for MAP-ID."
@@ -176,55 +188,31 @@
         response-uri (str "/update/" map-id "/")]
     (str (str scheme "://" host) response-uri)))
 
-(defn respond-first
-  "Respond to a first GET request."
-  [request]
-  (println [:respond-first :request request])
-  (let [map-id (get-next-id)
-        body (:body (response/resource-response "index.html"))]
-    (-> (response/created (response-url map-id request) body)
-        (response/content-type "text/html"))))
-
 (defn respond-post
   "Respond to an update POST request."
   [request]
-  (let [week (* 7 24 60 60)
-        map-id (map-id-from-uri (:uri request))
-        map-id (or map-id (get-next-id))
-        url (response-url map-id request)
+  (let [map-id (map-id-from-request request)
         body (:body request)
         you (update-map-guy map-id body)
-        value (select-keys you [:id :title :color])
         all (get-in @state [map-id :all])]
     (-> {:body (pr-str {:map-id map-id :you you :all all})}
         (response/status 200)
-        (response/content-type "application/edn")
-        (response/set-cookie (str map-id) value {:max-age week :path url}))))
+        (response/content-type "application/edn"))))
 
 (defn respond-get
   "Respond to a GET request."
   [request]
-  (let [request-uri (:uri request)]
-    (if-let [map-id (map-id-from-uri request-uri)]
-      (let [week (* 7 24 60 60)
-            url (response-url map-id request)
-            options {:max-age week :path url}
-            cookie (get-in request [:cookies :value])
-            you (select-keys cookie [:id :title :color])
-            you (update-map-guy map-id you)
-            all (get-in @state [map-id :all])
-            body (pr-str {:map-id map-id :you you :all all})]
-        (-> (response/created (url map-id request) body)
-            (response/content-type "application/edn")
-            (response/set-cookie (str map-id) you options)))
-      (respond-first request))))
+  (let [map-id (map-id-from-request request)
+        url (response-url map-id request)
+        body (:body (response/resource-response "index.html"))]
+    (-> (response/created url body)
+        (response/content-type "text/html"))))
 
 (defn handle-request
   "Return a response for REQUEST."
   [request]
-  (if (= :post (:request-method request))
-    (respond-post request)
-    (respond-get request)))
+  (let [respond {:get respond-get :post respond-post}]
+    (((:request-method request) respond) request)))
 
 (def moot-app
   "The server callback entry point when deployed."
