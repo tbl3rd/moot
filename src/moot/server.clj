@@ -1,38 +1,37 @@
 (ns moot.server
   (:gen-class)
-  (:import [java.io InputStreamReader PushbackReader]
-           [java.util Date])
+  (:import [java.util Date])
   (:require [clojure.string :as s]
             [clojure.tools.reader.edn :as edn]
             [ring.adapter.jetty :refer [run-jetty]]
             [ring.middleware.content-type :refer [wrap-content-type]]
-            [ring.middleware.cookies :refer [wrap-cookies]]
-            [ring.middleware.file :refer [wrap-file]]
-            [ring.middleware.file-info :refer [wrap-file-info]]
             [ring.middleware.not-modified :refer [wrap-not-modified]]
             [ring.middleware.params :refer [wrap-params]]
-            [ring.middleware.reload :refer [wrap-reload]]
             [ring.middleware.resource :refer [wrap-resource]]
-            [ring.util.mime-type :as mime-type]
             [ring.util.request :as request]
-            [ring.util.response :as response]
-            [tailrecursion.boot.core :as boot]))
+            [ring.util.response :as response]))
 
-(def the-next-id (atom 0))
-(defn get-next-id [] (swap! the-next-id inc))
+(let [the-next-id (atom 0)]
+  (defn get-next-id
+    "Return the next unique ID."
+    []
+    (swap! the-next-id inc)))
 
-(def index-html
-  "The bootstrap HTML for this application."
-  (s/join "\n"
-          ["<!DOCTYPE html>"
-           "<html>"
-           " <head>"
-           "  <script type=\"text/javascript\" src=\"./moot.js\"></script>"
-           "  <script type=\"text/javascript\""
-           "          src=\"https://maps.googleapis.com/maps/api/js?v=3.3\">"
-           "  </script>"
-           " </head>"
-           "</html>"]))
+(defn index-html
+  "The bootstrap HTML for this application and MAP-ID."
+  [map-id]
+  (let [map-meta (str "  <meta name='moot-map-id' content='" map-id "'>")]
+   (s/join "\n"
+           ["<!DOCTYPE html>"
+            "<html>"
+            " <head>"
+            map-meta
+            "  <script type='text/javascript' src='/moot.js'></script>"
+            "  <script type='text/javascript'"
+            "          src='https://maps.googleapis.com/maps/api/js?v=3.3'>"
+            "  </script>"
+            " </head>"
+            "</html>"])))
 
 (comment
   "In operation @state is a map of map-id to the representation of a map."
@@ -115,16 +114,6 @@
                             (update-in [map-id :all] assoc id new-guy)))]
       (get-in state [map-id :all id]))))
 
-(defn wrap-index-html-response
-  "Respond when request is implicitly for index.html."
-  [handler]
-  (fn [request]
-    (if (= "/" (:uri request))
-      (-> (response/resource-response "index.html")
-          (response/content-type "text/html")
-          (response/status 200))
-      (handler request))))
-
 (defn wrap-request-body-edn
   "Replace :body #HttpInput in handler with EDN when that is content-type."
   [handler]
@@ -140,7 +129,7 @@
   "Dump request and response maps."
   [handler]
   (fn [request]
-    (let [update? (or true (.startsWith (:uri request) "/update/"))]
+    (let [update? (.startsWith (:uri request) "/update/")]
       (if update? (println (pr-str [:request request])))
       (let [response (handler request)]
         (if update? (println (pr-str [:response response])))
@@ -172,14 +161,6 @@
            (edn/read-string map-id)))
         (get-next-id))))
 
-(defn created
-  "A success response to URL with MAP-ID and YOU encoded in edn."
-  [url uri map-id you]
-  (let [all (get-in @state [map-id :all])
-        body (pr-str {:map-id map-id :you you :all all})]
-    (-> (response/created url body)
-        (response/content-type "application/edn"))))
-
 (defn response-url
   "The URL for the response to REQUEST for MAP-ID."
   [map-id request]
@@ -202,10 +183,8 @@
 (defn respond-get
   "Respond to a GET request."
   [request]
-  (let [map-id (map-id-from-request request)
-        url (response-url map-id request)
-        body (:body (response/resource-response "index.html"))]
-    (-> (response/created url body)
+  (let [map-id (map-id-from-request request)]
+    (-> (response/created (str "/update/" map-id "/") (index-html map-id))
         (response/content-type "text/html"))))
 
 (defn handle-request
@@ -222,11 +201,14 @@
       wrap-request-body-edn
       wrap-content-type
       wrap-not-modified
-      wrap-params
-      wrap-cookies))
+      wrap-params))
 
 (defn -main [& [port]]
   (let [port (Integer. (or port 8000))]
     (run-jetty #'moot-app {:port port :join? false})))
+
+(comment
+  (def server (-main 3000))
+  )
 
 (println [:RELOADED 'server])

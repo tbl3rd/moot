@@ -7,7 +7,6 @@
             [clojure.string :as s]
             [goog.dom :as goog.dom]
             [goog.events :as goog.events]
-            [goog.net.Cookies :as goog.net.Cookies]
             [goog.net.EventType :as goog.net.EventType]
             [goog.net.XhrIo :as goog.net.XhrIo]))
 
@@ -76,7 +75,7 @@
     (str base (name color) ".png")))
 
 (defn goog-map-micon
-  "The micon with color.  (Not sure what the difference is.)"
+  "The micon with color.  (Not sure what the icon/micon difference is.)"
   [color]
   (let [base "http://maps.google.com/mapfiles/ms/micons/"]
     (str base (name color) ".png")))
@@ -219,6 +218,14 @@
     (.send connection uri "POST" request
            (clj->js {:content-type "application/edn"}))))
 
+(defn get-meta-name-content-map
+  "A map of name to content for all meta elements with name attributes."
+  []
+  (let [elements (.getElementsByTagName js/document "meta")
+        metas (for [i (range (aget elements "length"))] (.item elements i))
+          nvs (for [m metas] [(aget m "name") (aget m "content")])]
+    (into {} (remove (comp empty? first) nvs))))
+
 (defn ensure-markers
   "A :markers map containing old markers in STATE
   and all new markers from RESPONSE."
@@ -244,17 +251,11 @@
     (assoc (merge state response) :markers markers)))
 
 (defn update-markers
-  "Use response to update markers.  Add new markers as necessary,
-  then update position of live markers, and null out the map in the
-  dead markers."
+  "Use response to update markers."
   [response]
   (when response
-    (log [:update-markers :response response])
     (let [first-update? (nil? (:markers @state))]
       (swap! state move-markers response)
-      (let [map-id (:map-id response)]
-        (.replaceState js/history
-                       (js-obj) where (str "/update/" map-id "/")))
       (when first-update? (show-all-guys) (render-you)))))
 
 (defn update-position
@@ -262,7 +263,7 @@
   [handler]
   (try
     (.getCurrentPosition (aget js/navigator "geolocation") handler js/alert)
-    (catch :default x (log x))))
+    (catch :default x (js/alert x))))
 
 (defn update-state
   "Update client state after sending position to server."
@@ -272,7 +273,7 @@
                   state (swap! state assoc-in [:you :position]
                                {:lat (aget coords "latitude")
                                 :lng (aget coords "longitude")})
-                  uri (str "/update/" (or (:map-id state) 0) "/")]
+                  uri (str "/update/" (:map-id state) "/")]
               (http-post uri (pr-str (:you state)) update-markers)))]
     (update-position handler)))
 
@@ -290,9 +291,10 @@
    (call-periodically-when-visible (fn [] (apply f x args)) ms)))
 
 (defn new-goog-map
-  "A new Google map."
+  "A new Google map centered on the current position."
   []
-  (let [result (or (.getElementById js/document "the-map") (div {:id :the-map}))
+  (let [map-id (get (get-meta-name-content-map) "moot-map-id")
+        result (or (.getElementById js/document "the-map") (div {:id :the-map}))
         bottom-right {:position google.maps.ControlPosition.BOTTOM_RIGHT}]
     (letfn [(handler [position]
               (let [coords (aget position "coords")
@@ -304,8 +306,11 @@
                     the-map (google.maps.Map. result (clj->js options))]
                 (swap! state #(-> %
                                   (assoc-in [:you :position] latlng)
+                                  (assoc :map-id map-id)
                                   (assoc :the-map the-map)))))]
       (update-position handler)
+      (.replaceState js/history (:the-map @state)
+                     where (str "/update/" map-id "/"))
       result)))
 
 (defn render-page
@@ -319,9 +324,6 @@
               (style-webkit-refresh-workaround)
               (style-other-elements-on-page))
         (body {} (new-goog-map)))
-  (log (-> js/document
-           (goog.net.Cookies.)
-           (.get (str (:map-id @state)))))
   (call-periodically-when-visible (* 5 1000) update-state))
 
 (goog.events/listenOnce js/window "load" render-page)

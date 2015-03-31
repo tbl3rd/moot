@@ -55,14 +55,27 @@
  war {:file "moot.war"}
  web {:serve 'moot.server/moot-app})
 
-(deftask debug
-  "Debug the moot client and server."
+(deftask debug-client
+  "Debug the moot client in a REPL with a reloading ring server."
   []
   (comp
    (http/serve :handler 'moot.server/moot-app :reload true)
+   (cljs-repl)
    (watch :verbose true)
    (speak)
+   (reload)
+   (cljs :optimizations :none
+         :source-map true
+         :unified-mode true)))
+
+(deftask debug
+  "Debug the moot client and server in two separate REPLs."
+  []
+  (comp
+   (repl)
    (cljs-repl)
+   (watch :verbose true)
+   (speak)
    (reload)
    (cljs :optimizations :none
          :source-map true
