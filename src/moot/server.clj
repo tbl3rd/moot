@@ -92,9 +92,9 @@
 (defn get-guy-color-for-map
   [map-id guy-id]
   (let [state @state]
-    (if-let [result (get-in state [map-id guy-id :color])]
+    (if-let [result (get-in state [map-id :all guy-id :color])]
       result
-      (let [used (set (map :color (vals (get state map-id))))
+      (let [used (set (map :color (vals (get-in state [map-id :all]))))
             color (first (remove used marker-icon-colors))]
         (or color (first marker-icon-colors))))))
 
@@ -154,13 +154,18 @@
 (defn map-id-from-request
   "Return a new map ID or the map ID parsed from request."
   [request]
-  (let [re #"^/update/(.+)/$"
+  (let [re #"^/update/(\d+)\D?.*$"
         uri (:uri request)
         [update map-id] (re-find re (s/lower-case uri))]
     (or (do-or-nil
          (if (and update map-id)
            (edn/read-string map-id)))
         (get-next-id))))
+
+(defn respond-fail
+  "Respond to a bad request."
+  [request]
+  (response/not-found (pr-str request)))
 
 (defn respond-post
   "Respond to an update POST request."
@@ -183,8 +188,10 @@
 (defn handle-request
   "Return a response for REQUEST."
   [request]
-  (let [respond {:get respond-get :post respond-post}]
-    (((:request-method request) respond) request)))
+  ((case (:request-method request)
+     :get respond-get
+     :post respond-post
+     respond-fail) request))
 
 (def moot-app
   "The server callback entry point when deployed."
