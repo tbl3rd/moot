@@ -1,4 +1,5 @@
 (ns moot.client
+  (:import [google.maps.event])
   (:require [moot.css :refer [css]]
             [moot.html :refer [element-for-tag body button div head html
                                img input label script span style title]]
@@ -147,20 +148,23 @@
   "Render the abbreviated you legend."
   []
   (let [state @state
-        the-map (:the-map state) you (:you state) title (:title you)
-        checkbox (input {:type :checkbox :disabled true})
-        icon (goog-icon-img-for you)
-        control (div {:id :you :class "legend"}
-                     (div {:id title :class :guy}
-                          (span {} checkbox icon title)))]
-    (when (marker-visible? (:id you)) (aset checkbox "checked" true))
-    (goog.events/listenOnce control "click" render-legend)
-    (add-map-control control)))
+        you (:you state)
+        title (:title you)]
+    (when (and state you title)
+      (let [checkbox (input {:type :checkbox :disabled true})
+            icon (goog-icon-img-for you)
+            control (div {:id :you :class "legend"}
+                         (div {:id title :class :guy}
+                              (span {} checkbox icon title)))]
+        (when (marker-visible? (:id you)) (aset checkbox "checked" true))
+        (goog.events/listenOnce control "click" render-legend)
+        (add-map-control control)))))
 
 (defn render-legend
   "Render the legend."
   []
-  (let [state @state the-map (:the-map state) you (:you state)
+  (let [state @state
+        you (:you state)
         guys (cons you (remove #(= (:id you) (:id %)) (vals (:all state))))
         close (span {:id :close :class :guy :align :right}
                     (button {:type :button} "Close"))
@@ -222,7 +226,7 @@
   []
   (let [elements (.getElementsByTagName js/document "meta")
         metas (for [i (range (aget elements "length"))] (.item elements i))
-          nvs (for [m metas] [(aget m "name") (aget m "content")])]
+        nvs (for [m metas] [(aget m "name") (aget m "content")])]
     (into {} (remove (comp empty? first) nvs))))
 
 (defn ensure-markers
@@ -255,7 +259,9 @@
   (when response
     (let [first-update? (nil? (:markers @state))]
       (swap! state move-markers response)
-      (when first-update? (show-all-guys) (render-you)))))
+      (when first-update?
+        (show-all-guys)
+        (render-you)))))
 
 (defn update-position
   "Call handler with the current position."
@@ -292,8 +298,7 @@
 (defn new-goog-map
   "A new Google map centered on the current position."
   []
-  (let [map-id (get (get-meta-name-content-map) "moot-map-id")
-        result (or (.getElementById js/document "the-map") (div {:id :the-map}))
+  (let [result (or (.getElementById js/document "the-map") (div {:id :the-map}))
         bottom-right {:position google.maps.ControlPosition.BOTTOM_RIGHT}]
     (letfn [(handler [position]
               (let [coords (aget position "coords")
@@ -305,23 +310,30 @@
                     the-map (google.maps.Map. result (clj->js options))]
                 (swap! state #(-> %
                                   (assoc-in [:you :position] latlng)
-                                  (assoc :map-id map-id)
-                                  (assoc :the-map the-map)))))]
+                                  (assoc :the-map the-map)))
+                (google.maps.event.addListenerOnce
+                 the-map "idle"
+                 #(call-periodically-when-visible (* 5 1000) update-state))))]
       (update-position handler)
-      (.replaceState js/history (:the-map @state)
-                     where (str "/update/" map-id "/"))
       result)))
+
+(defn frob-url-in-address-bar
+  []
+  (let [map-id (get (get-meta-name-content-map) "moot-map-id")
+        uri (str "/update/" map-id "/")]
+    (swap! state assoc :map-id map-id)
+    (.replaceState js/history (js-obj) where uri)))
 
 (defn render-page
   "Render the page HTML."
   []
+  (frob-url-in-address-bar)
   (html {}
         (head {}
               (title {} where)
               (style-webkit-refresh-workaround)
               (style-other-elements-on-page))
-        (body {} (new-goog-map)))
-  (call-periodically-when-visible (* 5 1000) update-state))
+        (body {} (new-goog-map))))
 
 (goog.events/listenOnce js/window "load" render-page)
 

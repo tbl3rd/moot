@@ -152,15 +152,14 @@
   `(try (do ~@body) (catch Exception x# (println x#))))
 
 (defn map-id-from-request
-  "Return a new map ID or the map ID parsed from request."
+  "Return nil or the map ID parsed from request."
   [request]
   (let [re #"^/update/(\d+)\D?.*$"
         uri (:uri request)
         [update map-id] (re-find re (s/lower-case uri))]
     (or (do-or-nil
          (if (and update map-id)
-           (edn/read-string map-id)))
-        (get-next-id))))
+           (edn/read-string map-id))))))
 
 (defn respond-fail
   "Respond to a bad request."
@@ -170,20 +169,33 @@
 (defn respond-post
   "Respond to an update POST request."
   [request]
-  (let [map-id (map-id-from-request request)
-        body (:body request)
-        you (update-map-guy map-id body)
-        all (get-in @state [map-id :all])]
-    (-> {:body (pr-str {:map-id map-id :you you :all all})}
-        (response/status 200)
-        (response/content-type "application/edn"))))
+  (if-let [map-id (map-id-from-request request)]
+    (let [state @state]
+      (if (contains? state map-id)
+        (let [body (:body request)
+              you (update-map-guy map-id body)
+              all (get-in state [map-id :all])]
+          (-> {:body (pr-str {:map-id map-id :you you :all all})}
+              (response/status 200)
+              (response/content-type "application/edn")))
+        (respond-fail request)))
+    (respond-fail request)))
 
 (defn respond-get
   "Respond to a GET request."
   [request]
-  (let [map-id (map-id-from-request request)]
-    (-> (response/created (str "/update/" map-id "/") (index-html map-id))
-        (response/content-type "text/html"))))
+  (letfn [(create [map-id]
+            (let [now (.getTime (java.util.Date.))
+                  uri (str "/update/" map-id "/")]
+              (swap! state update-in [map-id] assoc :used now)
+              (-> (response/created uri (index-html map-id))
+                  (response/content-type "text/html"))))]
+    (if-let [map-id (map-id-from-request request)]
+      (let [state @state]
+        (if (contains? state map-id)
+          (create map-id)
+          (respond-fail request)))
+      (create (get-next-id)))))
 
 (defn handle-request
   "Return a response for REQUEST."
