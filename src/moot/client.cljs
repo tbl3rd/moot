@@ -1,8 +1,7 @@
 (ns moot.client
   (:require [moot.css :refer [css]]
-            [moot.html :refer [element-for-tag body button div form h1 h2
-                               head html img input label link p script
-                               span style textarea title]]
+            [moot.html :refer [element-for-tag body button div head html
+                               img input label script span style title]]
             [cljs.reader :as reader]
             [clojure.string :as s]
             [goog.dom :as goog.dom]
@@ -318,8 +317,6 @@
   []
   (html {}
         (head {}
-              (link {:rel :icon :type "image/x-icon" :href "favicon.ico"})
-              ((element-for-tag :meta) {:charset :utf-8})
               (title {} where)
               (style-webkit-refresh-workaround)
               (style-other-elements-on-page))

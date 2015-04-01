@@ -7,8 +7,10 @@
     (let [value (cond (true? v) "true"
                       (false? v) "false"
                       (number? v) (str v)
+                      (string? v) v
+                      (keyword? v) (name v)
                       (fn? v) v
-                      :else (name v))]
+                      :else (js/alert (pr-str v)))]
       (.setAttribute element (name k) value))))
 
 (defn element-for-tag
@@ -33,17 +35,12 @@
 (def button   (element-for-tag :button))
 (def div      (element-for-tag :div))
 (def form     (element-for-tag :form))
-(def h1       (element-for-tag :h1))
-(def h2       (element-for-tag :h2))
 (def head     (element-for-tag :head))
 (def html     (element-for-tag :html))
 (def img      (element-for-tag :img))
 (def input    (element-for-tag :input))
 (def label    (element-for-tag :label))
-(def link     (element-for-tag :link))
-(def p        (element-for-tag :p))
 (def script   (element-for-tag :script))
 (def span     (element-for-tag :span))
 (def style    (element-for-tag :style))
-(def textarea (element-for-tag :textarea))
 (def title    (element-for-tag :title))

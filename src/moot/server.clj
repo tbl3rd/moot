@@ -13,25 +13,26 @@
 
 (let [the-next-id (atom 0)]
   (defn get-next-id
-    "Return the next unique ID."
-    []
-    (swap! the-next-id inc)))
+  "Return the next unique ID."
+  []
+  (swap! the-next-id inc)))
 
 (defn index-html
   "The bootstrap HTML for this application and MAP-ID."
   [map-id]
-  (let [map-meta (str "  <meta name='moot-map-id' content='" map-id "'>")]
-   (s/join "\n"
-           ["<!DOCTYPE html>"
-            "<html>"
-            " <head>"
-            map-meta
-            "  <script type='text/javascript' src='/moot.js'></script>"
-            "  <script type='text/javascript'"
-            "          src='https://maps.googleapis.com/maps/api/js?v=3.3'>"
-            "  </script>"
-            " </head>"
-            "</html>"])))
+  (s/join "\n"
+          ["<!DOCTYPE html>"
+           "<html>"
+           " <head>"
+           "  <meta charset='utf-8'>"
+           (str "  <meta name='moot-map-id' content='" map-id "'>")
+           "  <link rel='icon' type='image/x-icon' href='/favicon.ico'>"
+           "  <script type='text/javascript' src='/moot.js'></script>"
+           "  <script type='text/javascript'"
+           "          src='https://maps.googleapis.com/maps/api/js?v=3.3'>"
+           "  </script>"
+           " </head>"
+           "</html>"]))
 
 (comment
   "In operation @state is a map of map-id to the representation of a map."
@@ -161,14 +162,6 @@
            (edn/read-string map-id)))
         (get-next-id))))
 
-(defn response-url
-  "The URL for the response to REQUEST for MAP-ID."
-  [map-id request]
-  (let [scheme (-> request :scheme name)
-        host (get-in request [:headers "host"])
-        response-uri (str "/update/" map-id "/")]
-    (str (str scheme "://" host) response-uri)))
-
 (defn respond-post
   "Respond to an update POST request."
   [request]
@@ -207,8 +200,8 @@
   (let [port (Integer. (or port 8000))]
     (run-jetty #'moot-app {:port port :join? false})))
 
-(comment
-  (def server (-main 3000))
-  )
+(comment "Evaluate this to start a new server in a REPL."
+         (def server (-main 3000))
+         )
 
 (println [:RELOADED 'server])
