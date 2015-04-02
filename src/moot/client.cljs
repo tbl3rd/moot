@@ -250,7 +250,8 @@
        (get markers id)
        (clj->js (get-in response [:all id :position]))))
     (doseq [id (remove (set alive) (keys (:all state)))]
-      (.setMap (get-in state [:markers id]) nil))
+      (if-let [marker (get-in state [:markers id])]
+        (.setMap marker nil)))
     (assoc (merge state response) :markers markers)))
 
 (defn update-markers
@@ -318,6 +319,7 @@
       result)))
 
 (defn frob-url-in-address-bar
+  "Put the map-id from the HTML meta element into address bar and STATE."
   []
   (let [map-id (get (get-meta-name-content-map) "moot-map-id")
         uri (str "/update/" map-id "/")]

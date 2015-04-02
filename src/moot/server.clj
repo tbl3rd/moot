@@ -98,22 +98,21 @@
             color (first (remove used marker-icon-colors))]
         (or color (first marker-icon-colors))))))
 
-(defn update-map-guy
-  "Update guy in map with MAP-ID."
-  [map-id {:keys [id title] :as guy}]
+(defn update-map-guy!
+  "Response to updating map with MAP-ID with guy keys."
+  [map-id {:keys [id title position]}]
   #_(when (not (get @state map-id)) (mock-map map-id))
   (let [id (or id (get-next-id))
         color (get-guy-color-for-map map-id id)
         title (or title (str "Mr " (s/capitalize (name color))))
-        position (:position guy)
-        new-guy {:id id :title title :color color :position position}]
+        guy {:id id :title title :color color :position position}]
     (let [now (.getTime (java.util.Date.))
           state (swap! state
                        #(-> %
                             (discard-old-maps)
                             (update-in [map-id] assoc :used now)
-                            (update-in [map-id :all] assoc id new-guy)))]
-      (get-in state [map-id :all id]))))
+                            (update-in [map-id :all] assoc id guy)))]
+      {:map-id map-id :you guy :all (get-in state [map-id :all])})))
 
 (defn wrap-request-body-edn
   "Replace :body #HttpInput in handler with EDN when that is content-type."
@@ -172,12 +171,9 @@
   (if-let [map-id (map-id-from-request request)]
     (let [state @state]
       (if (contains? state map-id)
-        (let [body (:body request)
-              you (update-map-guy map-id body)
-              all (get-in state [map-id :all])]
-          (-> {:body (pr-str {:map-id map-id :you you :all all})}
-              (response/status 200)
-              (response/content-type "application/edn")))
+        (-> {:body (pr-str (update-map-guy! map-id (:body request)))}
+            (response/status 200)
+            (response/content-type "application/edn"))
         (respond-fail request)))
     (respond-fail request)))
 
