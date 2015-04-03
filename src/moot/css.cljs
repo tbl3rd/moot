@@ -55,7 +55,7 @@
               (cond (keyword? k) [[(name k) (value v)]]
                     (string? k) [[k (value v)]]
                     (vector? k) (prefix k (value v))
-                    :else (js/alert (pr-str [:css-map { :k k :v v}])))))
+                    :else (js/alert (pr-str [:css-map {:k k :v v}])))))
           (expand [props]
             (str "{"
                  (s/join (map (fn [[k v]] (str k ":" v ";"))

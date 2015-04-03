@@ -5,6 +5,7 @@
             [clojure.tools.reader.edn :as edn]
             [ring.adapter.jetty :refer [run-jetty]]
             [ring.middleware.content-type :refer [wrap-content-type]]
+            [ring.middleware.cookies :refer [wrap-cookies]]
             [ring.middleware.not-modified :refer [wrap-not-modified]]
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.resource :refer [wrap-resource]]
@@ -18,14 +19,14 @@
   (swap! the-next-id inc)))
 
 (defn index-html
-  "The bootstrap HTML for this application and MAP-ID."
-  [map-id]
+  "The bootstrap HTML for this application with map at URI."
+  [uri]
   (s/join "\n"
           ["<!DOCTYPE html>"
            "<html>"
            " <head>"
            "  <meta charset='utf-8'>"
-           (str "  <meta name='moot-map-id' content='" map-id "'>")
+           (str "  <meta name='moot-uri' content='" uri "'>")
            "  <link rel='icon' type='image/x-icon' href='/favicon.ico'>"
            "  <script type='text/javascript' src='/moot.js'></script>"
            "  <script type='text/javascript'"
@@ -171,9 +172,14 @@
   (if-let [map-id (map-id-from-request request)]
     (let [state @state]
       (if (contains? state map-id)
-        (-> {:body (pr-str (update-map-guy! map-id (:body request)))}
-            (response/status 200)
-            (response/content-type "application/edn"))
+        (let [body (update-map-guy! map-id (:body request))
+              value (select-keys (:you body) [:id :title :color])
+              week (* 7 24 60 60)
+              options {:max-age week :path (:uri request)}]
+          (-> {:body (pr-str body)}
+              (response/status 200)
+              (response/content-type "application/edn")
+              (response/set-cookie (:path options) value options)))
         (respond-fail request)))
     (respond-fail request)))
 
@@ -184,7 +190,7 @@
             (let [now (.getTime (java.util.Date.))
                   uri (str "/update/" map-id "/")]
               (swap! state update-in [map-id] assoc :used now)
-              (-> (response/created uri (index-html map-id))
+              (-> (response/created uri (index-html uri))
                   (response/content-type "text/html"))))]
     (if-let [map-id (map-id-from-request request)]
       (let [state @state]
@@ -196,6 +202,7 @@
 (defn handle-request
   "Return a response for REQUEST."
   [request]
+  (println [:handle-request :cookies (:cookies request)])
   ((case (:request-method request)
      :get respond-get
      :post respond-post
@@ -209,7 +216,8 @@
       wrap-request-body-edn
       wrap-content-type
       wrap-not-modified
-      wrap-params))
+      wrap-params
+      wrap-cookies))
 
 (defn -main [& [port]]
   (let [port (Integer. (or port 8000))]

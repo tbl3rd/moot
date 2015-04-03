@@ -278,18 +278,17 @@
             (let [coords (aget position "coords")
                   state (swap! state assoc-in [:you :position]
                                {:lat (aget coords "latitude")
-                                :lng (aget coords "longitude")})
-                  uri (str "/update/" (:map-id state) "/")]
-              (http-post uri (pr-str (:you state)) update-markers)))]
+                                :lng (aget coords "longitude")})]
+              (http-post (:uri state) (pr-str (:you state)) update-markers)))]
     (update-position handler)))
 
 (defn call-periodically-when-visible
-  "Call f with args every ms milliseconds when document is visible."
+  "Call f with args when visible and every ms thereafter."
   ([ms f]
    (letfn [(call [id]
              (let [id (if (aget js/document "hidden")
                         (and id (js/clearInterval id) nil)
-                        (js/setInterval f ms))]
+                        (do (js/setInterval f ms) (f)))]
                (goog.events/listenOnce
                 js/document "visibilitychange" #(call id))))]
      (call nil)))
@@ -321,9 +320,8 @@
 (defn frob-url-in-address-bar
   "Put the map-id from the HTML meta element into address bar and STATE."
   []
-  (let [map-id (get (get-meta-name-content-map) "moot-map-id")
-        uri (str "/update/" map-id "/")]
-    (swap! state assoc :map-id map-id)
+  (let [uri (get (get-meta-name-content-map) "moot-uri")]
+    (swap! state assoc :uri uri)
     (.replaceState js/history (js-obj) where uri)))
 
 (defn render-page
