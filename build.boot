@@ -43,14 +43,12 @@
  beanstalk {:access-key (System/getenv "MOOT_AWS_ACCESS_KEY")
             :secret-key (System/getenv "MOOT_AWS_SECRET_KEY")
             :version "0.1.0-SNAPSHOT"
-            :beanstalk-envs [{:cname-prefix "moot"
-                              :id "e-4kqjyubtvz"
-                              :name "moot-env"}]
+            :beanstalk-envs [{:cname-prefix "moot" :name "moot-env"}]
             :deploy true
             :description "a meeting of gentlemen"
             :file "target/moot.war"
             :env "moot-env"
-            :name "moot-env"}
+            :name "moot"}
  cljs {:output-to "moot.js"}
  war {:file "moot.war"}
  web {:serve 'moot.server/moot-app})

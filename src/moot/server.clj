@@ -9,6 +9,7 @@
             [ring.middleware.not-modified :refer [wrap-not-modified]]
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.resource :refer [wrap-resource]]
+            [ring.middleware.session :refer [wrap-session]]
             [ring.util.request :as request]
             [ring.util.response :as response]))
 
@@ -183,21 +184,38 @@
         (respond-fail request)))
     (respond-fail request)))
 
+(defn respond-create
+  "Respond by creating a new map with MAP-ID."
+  [map-id]
+  (let [now (.getTime (java.util.Date.))
+        uri (str "/update/" map-id "/")]
+    (swap! state update-in [map-id] assoc :used now)
+    (-> (response/created uri (index-html uri))
+        (response/content-type "text/html"))))
+
+(defn respond-get-with-cookies
+  [request]
+  )
+
 (defn respond-get
   "Respond to a GET request."
   [request]
-  (letfn [(create [map-id]
-            (let [now (.getTime (java.util.Date.))
-                  uri (str "/update/" map-id "/")]
-              (swap! state update-in [map-id] assoc :used now)
-              (-> (response/created uri (index-html uri))
-                  (response/content-type "text/html"))))]
-    (if-let [map-id (map-id-from-request request)]
-      (let [state @state]
-        (if (contains? state map-id)
-          (create map-id)
-          (respond-fail request)))
-      (create (get-next-id)))))
+  (if-let [map-id (map-id-from-request request)]
+    (let [state @state]
+      (if (contains? state map-id)
+        (when-let [value (get-in request [:cookies (:uri request) :value])]
+          (println [:respond-get :value value])
+          (let [{:keys [id color title]} value]
+            (if (contains? (state map-id) id)
+              (respond-post (doto (assoc request :body
+                                         (assoc (:body request)
+                                                :id id
+                                                :color color
+                                                :title title))
+                              println))
+              (respond-create map-id))))
+        (respond-fail request)))
+    (respond-create (get-next-id))))
 
 (defn handle-request
   "Return a response for REQUEST."
@@ -212,12 +230,13 @@
   "The server callback entry point when deployed."
   (-> handle-request
       (wrap-resource "/")
+      wrap-cookies
       wrap-dump-request-response
       wrap-request-body-edn
       wrap-content-type
       wrap-not-modified
       wrap-params
-      wrap-cookies))
+      ))
 
 (defn -main [& [port]]
   (let [port (Integer. (or port 8000))]
