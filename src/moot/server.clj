@@ -185,7 +185,7 @@
     (respond-fail request)))
 
 (defn respond-create
-  "Respond by creating a new map with MAP-ID."
+  "Respond by creating a new map with MAP-ID if necessary."
   [map-id]
   (let [now (.getTime (java.util.Date.))
         uri (str "/update/" map-id "/")]
@@ -194,8 +194,13 @@
         (response/content-type "text/html"))))
 
 (defn respond-get-with-cookies
-  [request]
-  )
+  "Respond to a GET REQUEST with known MAP-ID if it contains a cookie."
+  [map-id request]
+  (if-let [cookies (:cookies request)]
+    (do
+      (println [:respond-get-with-cookies :cookies cookies])
+      (respond-create map-id))
+    (respond-fail request)))
 
 (defn respond-get
   "Respond to a GET request."
@@ -203,17 +208,7 @@
   (if-let [map-id (map-id-from-request request)]
     (let [state @state]
       (if (contains? state map-id)
-        (when-let [value (get-in request [:cookies (:uri request) :value])]
-          (println [:respond-get :value value])
-          (let [{:keys [id color title]} value]
-            (if (contains? (state map-id) id)
-              (respond-post (doto (assoc request :body
-                                         (assoc (:body request)
-                                                :id id
-                                                :color color
-                                                :title title))
-                              println))
-              (respond-create map-id))))
+        (respond-get-with-cookies map-id request)
         (respond-fail request)))
     (respond-create (get-next-id))))
 
