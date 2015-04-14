@@ -20,21 +20,23 @@
   (swap! the-next-id inc)))
 
 (defn index-html
-  "The bootstrap HTML for this application with map at URI."
-  [uri]
-  (s/join "\n"
-          ["<!DOCTYPE html>"
-           "<html>"
-           " <head>"
-           "  <meta charset='utf-8'>"
-           (str "  <meta name='moot-uri' content='" uri "'>")
-           "  <link rel='icon' type='image/x-icon' href='/favicon.ico'>"
-           "  <script type='text/javascript' src='/moot.js'></script>"
-           "  <script type='text/javascript'"
-           "          src='https://maps.googleapis.com/maps/api/js?v=3.3'>"
-           "  </script>"
-           " </head>"
-           "</html>"]))
+  "The bootstrap HTML for this application at URI with MAP-ID."
+  [map-id uri]
+  (letfn [(meta [key val] (str "  <meta name='" key "' content='" val "'>"))]
+    (s/join "\n"
+            ["<!DOCTYPE html>"
+             "<html>"
+             " <head>"
+             "  <meta charset='utf-8'>"
+             (meta "moot-map-id" map-id)
+             (meta "moot-uri" uri)
+             "  <link rel='icon' type='image/x-icon' href='/favicon.ico'>"
+             "  <script type='text/javascript' src='/moot.js'></script>"
+             "  <script type='text/javascript'"
+             "          src='https://maps.googleapis.com/maps/api/js?v=3.3'>"
+             "  </script>"
+             " </head>"
+             "</html>"])))
 
 (comment
   "In operation @state is a map of map-id to the representation of a map."
@@ -92,6 +94,7 @@
     (reduce conj colors dotted)))
 
 (defn get-guy-color-for-map
+  "Return a color for GUY-ID in MAP-ID."
   [map-id guy-id]
   (let [state @state]
     (if-let [result (get-in state [map-id :all guy-id :color])]
@@ -106,7 +109,9 @@
   #_(when (not (get @state map-id)) (mock-map map-id))
   (let [id (or id (get-next-id))
         color (get-guy-color-for-map map-id id)
-        title (or title (str "Mr " (s/capitalize (name color))))
+        title (or title
+                  (get-in @state [map-id :all id :title])
+                  (str "Mr " (s/capitalize (name color))))
         guy {:id id :title title :color color :position position}]
     (let [now (.getTime (java.util.Date.))
           state (swap! state
@@ -174,13 +179,10 @@
     (let [state @state]
       (if (contains? state map-id)
         (let [body (update-map-guy! map-id (:body request))
-              value (select-keys (:you body) [:id :title :color])
-              week (* 7 24 60 60)
-              options {:max-age week :path (:uri request)}]
+              week (* 7 24 60 60)]
           (-> {:body (pr-str body)}
               (response/status 200)
-              (response/content-type "application/edn")
-              (response/set-cookie (:path options) value options)))
+              (response/content-type "application/edn")))
         (respond-fail request)))
     (respond-fail request)))
 
@@ -190,17 +192,8 @@
   (let [now (.getTime (java.util.Date.))
         uri (str "/update/" map-id "/")]
     (swap! state update-in [map-id] assoc :used now)
-    (-> (response/created uri (index-html uri))
+    (-> (response/created uri (index-html map-id uri))
         (response/content-type "text/html"))))
-
-(defn respond-get-with-cookies
-  "Respond to a GET REQUEST with known MAP-ID if it contains a cookie."
-  [map-id request]
-  (if-let [cookies (:cookies request)]
-    (do
-      (println [:respond-get-with-cookies :cookies cookies])
-      (respond-create map-id))
-    (respond-fail request)))
 
 (defn respond-get
   "Respond to a GET request."
@@ -208,7 +201,7 @@
   (if-let [map-id (map-id-from-request request)]
     (let [state @state]
       (if (contains? state map-id)
-        (respond-get-with-cookies map-id request)
+        (respond-create map-id)
         (respond-fail request)))
     (respond-create (get-next-id))))
 

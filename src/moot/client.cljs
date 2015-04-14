@@ -3,10 +3,11 @@
   (:require [moot.css :refer [css]]
             [moot.html :refer [element-for-tag body button div head html
                                img input label script span style title]]
-            [cljs.reader :as reader]
+            [cljs.reader :as edn]
             [clojure.string :as s]
             [goog.dom :as goog.dom]
             [goog.events :as goog.events]
+            [goog.net.cookies :as goog.net.cookies]
             [goog.net.EventType :as goog.net.EventType]
             [goog.net.XhrIo :as goog.net.XhrIo]))
 
@@ -216,7 +217,7 @@
   (let [connection (goog.net.XhrIo.)]
     (goog.events.listen connection goog.net.EventType/COMPLETE
                         #(handle-response
-                          (reader/read-string
+                          (edn/read-string
                            (.getResponseText connection))))
     (.send connection uri "POST" request
            (clj->js {:content-type "application/edn"}))))
@@ -261,6 +262,11 @@
     (let [first-update? (nil? (:markers @state))]
       (swap! state move-markers response)
       (when first-update?
+        (let [state @state
+              map-id (:map-id state)
+              id (-> state :you :id)]
+          (log [:update-markers :map-id map-id :id id])
+          (.set goog.net.cookies map-id id))
         (show-all-guys)
         (render-you)))))
 
@@ -288,7 +294,7 @@
    (letfn [(call [id]
              (let [id (if (aget js/document "hidden")
                         (and id (js/clearInterval id) nil)
-                        (do (js/setInterval f ms) (f)))]
+                        (js/setInterval f ms))]
                (goog.events/listenOnce
                 js/document "visibilitychange" #(call id))))]
      (call nil)))
@@ -318,10 +324,16 @@
       result)))
 
 (defn frob-url-in-address-bar
-  "Put the map-id from the HTML meta element into address bar and STATE."
+  "Load meta element data into address bar and state."
   []
-  (let [uri (get (get-meta-name-content-map) "moot-uri")]
-    (swap! state assoc :uri uri)
+  (let [meta-data (get-meta-name-content-map)
+        uri (get meta-data "moot-uri")
+        map-id (get meta-data "moot-map-id")
+        id-string (.get goog.net.cookies map-id)
+        id (and id-string (edn/read-string id-string))]
+    (swap! state #(-> %
+                      (assoc-in [:you :id] id)
+                      (assoc :uri uri :map-id map-id)))
     (.replaceState js/history (js-obj) where uri)))
 
 (defn render-page
